@@ -2164,10 +2164,10 @@ result_frame_prot <- result_frame_prot[order(result_frame_prot$mean),]
 result_frame$Lake <- NA 
 result_frame_prot$Lake <- NA
 lakes_frame <- otu_table_phyla
-lakes_frame$Lake <- "Lake Hazen"
+if (i == 1) {lakes_frame$Lake <- "Lake Hazen"} else {lakes_frame$Lake <- "Pond1"}
 lakes_frame$Lake[grep("Skeleton", lakes_frame$Sample)] <- "Skeleton Lake"
 lakes_frame_prot <- otu_table_phyla_prot
-lakes_frame_prot$Lake <- "Lake Hazen"
+if (i == 1) {lakes_frame_prot$Lake <- "Lake Hazen"} else {lakes_frame_prot$Lake <- "Pond1"}
 lakes_frame_prot$Lake[grep("Skeleton", lakes_frame_prot$Sample)] <- "Skeleton Lake"
 mean_frame_lake <- aggregate(Abundance ~ Phylum + Lake, lakes_frame, mean)
 mean_frame_lake_prot <- aggregate(Abundance ~ Phylum + Lake, lakes_frame_prot, mean)
