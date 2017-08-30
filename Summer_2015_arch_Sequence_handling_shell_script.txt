@@ -1,0 +1,62 @@
+#!/bin/bash
+#$ -N hazensummer_a_16S_complete
+#$ -l mem_free=200G
+#$ -l qname=abaqus.q
+#$ -q abaqus.q
+#$ -j y
+#$ -S /bin/bash
+
+echo "1. join paired ends, overlap > 100 bp, highest p-value stringency"
+pear -f ~/matti/hazensummer_a/hazensummer_349F_R1.fastq.gz -r ~/matti/hazensummer_a/hazensummer_349F_R2.fastq.gz -o ~/matti/hazensummer_a/hazensummer_a_paired -p 0.0001 -v 100 -j 80
+
+echo "2. check sequence quality with fastqc"
+fastqc ~/matti/hazensummer_a/hazensummer_a_paired.assembled.fastq -o ~/matti/hazensummer_a/
+
+echo "3. convert fastq to fasta and qual files"
+convert_fastaqual_fastq.py -c fastq_to_fastaqual -f ~/matti/hazensummer_a/hazensummer_a_paired.assembled.fastq -o ~/matti/hazensummer_a/
+
+echo "4. check the mapping file"
+validate_mapping_file.py -m ~/matti/hazensummer_a/hazensummer_a_map_meta.txt -o ~/matti/hazensummer_a/
+
+echo "5. split libraries according to the mapping file, remove both forward and reverse primers, barcode length 8, min length 350, max length 500, quality filter to remove N and nucleotides with avg quality scores under 28 in a window of 2"
+split_libraries.py -m ~/matti/hazensummer_a/hazensummer_a_map_meta_corrected.txt -f ~/matti/hazensummer_a/hazensummer_a_paired.assembled.fna -q ~/matti/hazensummer_a/hazensummer_a_paired.assembled.qual -o ~/matti/hazensummer_a/ -z truncate_remove -b 8 -l 350 -L 500 -s 28 -w 2 -x
+
+echo "6. pick chimeras with vsearch uchime against the whole SILVA 128 Nr database and remove them"
+vsearch --uchime_ref ~/matti/hazensummer_a/seqs.fna --db ~/matti/SILVA/SILVA_128_SSURef_Nr99_tax_silva_short_dna.fasta --nonchimeras ~/matti/hazensummer_a/seqs_chimeras_filtered.fna --uchimeout ~/matti/hazensummer_a/chimeras_log.txt
+
+echo "7. dereplicate sequences with vsearch"
+mkdir -p ~/matti/hazensummer_a/swarm
+vsearch --derep_fulllength ~/matti/hazensummer_a/seqs_chimeras_filtered.fna --output ~/matti/hazensummer_a/swarm/dereplicated.fna -uc ~/matti/hazensummer_a/swarm/dereplicated.uc --sizeout
+uc_to_OTU_table.R -c ~/matti/hazensummer_a/swarm/dereplicated.uc -o ~/matti/hazensummer_a/swarm/ -f ~/matti/hazensummer_a/swarm/dereplicated.fna
+awk -F ";|=" '/^>/{print $3}' ~/matti/hazensummer_a/swarm/dereplicated.fna > ~/matti/hazensummer_a/swarm/dereplicated_abundance.txt
+awk 'FNR==NR{a[++i]=$1;next} /^>/{print $1 "_" a[++j]}!/^>/{print}' ~/matti/hazensummer_a/swarm/dereplicated_abundance.txt ~/matti/hazensummer_a/swarm/dereplicated_renamed.fasta > ~/matti/hazensummer_a/swarm/dereplicated_abundance.fasta
+
+echo "8. cluster sequences with Swarm v2 and make an OTU table with custom R script"
+swarm -f -o ~/matti/hazensummer_a/swarm/otu_map.txt -t 80 -s ~/matti/hazensummer_a/swarm/swarm_statistics.txt ~/matti/hazensummer_a/swarm/dereplicated_abundance.fasta
+swarm_construct_otu_table.R -i ~/matti/hazensummer_a/swarm/otu_map.txt -t ~/matti/hazensummer_a/swarm/otu_table.txt -o ~/matti/hazensummer_a/swarm/
+awk -v OFS="\t" '$1=$1' ~/matti/hazensummer_a/swarm/swarm_otu_table.txt > ~/matti/hazensummer_a/swarm/swarm_otu_table_with_singletons.txt
+biom convert -i ~/matti/hazensummer_a/swarm/swarm_otu_table_with_singletons.txt -o ~/matti/hazensummer_a/swarm_otu_table_with_singletons.biom --table-type="OTU table" --to-json
+
+echo "9. remove singleton OTUs from the OTU table and subset the swarm fasta file to no singleton cluster seeds"
+awk '{for(i=2; i<=NF;i++) j+=$i; if(j==1){j=0; next}; print $0; j=0}' ~/matti/hazensummer_a/swarm/swarm_otu_table.txt > ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.tmp
+awk -v OFS="\t" '$1=$1' ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.tmp > ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.txt
+rm ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.tmp
+awk '{print $1}' ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.txt > ~/matti/hazensummer_a/swarm/swarm_cluster_seed_list.txt
+faSomeRecords ~/matti/hazensummer_a/swarm/dereplicated_renamed.fasta ~/matti/hazensummer_a/swarm/swarm_cluster_seed_list.txt ~/matti/hazensummer_a/swarm/swarm_cluster_seeds.fasta
+
+echo "10. convert OTU table to json and CSS normalize with QIIME"
+biom convert -i ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.txt -o ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.biom --table-type="OTU table" --to-json
+normalize_table.py -i ~/matti/hazensummer_a/swarm/swarm_otu_table_no_singletons.biom -a CSS -o ~/matti/hazensummer_a/otu_table_normalized.biom
+
+echo "11. transcribe swarm cluster seeds to rna so they can be aligned to the SILVA 128 SSU database"
+sed '/^[^>]/ y/tT/uU/' ~/matti/hazensummer_a/swarm/swarm_cluster_seeds.fasta > ~/matti/hazensummer_a/swarm_cluster_seeds_rna.fasta
+
+echo "12. match reads to taxonomy with parallel SINA"
+sina -i ~/matti/hazensummer_a/swarm_cluster_seeds_rna.fasta -o ~/matti/hazensummer_a/swarm_cluster_seeds_rna_aligned.fasta --ptdb ~/matti/SILVA/SSURef_NR99_128_SILVA_07_09_16_opt.arb --search --search-db ~/matti/SILVA/SSURef_NR99_128_SILVA_07_09_16_opt.arb --meta-fmt csv --lca-fields tax_slv --log-file ~/matti/hazensummer_a/swarm_cluster.log
+
+echo "13. trim alignments with trimAl for de novo tree building"
+trimal -in ~/matti/hazensummer_a/swarm_cluster_seeds_rna_aligned.fasta -out ~/matti/hazensummer_a/cluster_seeds_aligned_trimal.fasta -automated1
+awk -F " " '/^>/{$0=$1}1' ~/matti/hazensummer_a/cluster_seeds_aligned_trimal.fasta > ~/matti/hazensummer_a/cluster_seeds_aligned_trimal_renamed.fasta
+
+echo "14. build tree with fasttree"
+~/.local/bin/FastTreeMP -gtr -gamma -nt ~/matti/hazensummer_a/cluster_seeds_aligned_trimal_renamed.fasta > ~/matti/hazensummer_a/hazensummer_a_tree.tre

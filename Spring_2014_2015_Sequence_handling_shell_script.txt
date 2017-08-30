@@ -1,0 +1,70 @@
+#!/bin/bash
+#$ -N hazen_16S_complete
+#$ -l mem_free=200G
+#$ -l qname=abaqus.q
+#$ -q abaqus.q
+#$ -j y
+#$ -S /bin/bash
+
+echo "1. join paired ends, overlap > 100 bp, highest p-value stringency"
+pear -f ~/matti/qHazen16S/SAM1-13_S5_L001_R1_001.fastq -r ~/matti/qHazen16S/SAM1-13_S5_L001_R2_001.fastq -o ~/matti/qHazen16S/qhazen_paired -p 0.0001 -v 100 -j 80
+pear -f ~/matti/rHazen16S/Sam1-20_S6_L001_R1_001.fastq.gz -r ~/matti/rHazen16S/Sam1-20_S6_L001_R2_001.fastq.gz -o ~/matti/rHazen16S/rhazen_paired -p 0.0001 -v 100 -j 80
+
+echo "2. check sequence quality with fastqc"
+fastqc ~/matti/qHazen16S/qhazen_paired.assembled.fastq -o ~/matti/qHazen16S/
+fastqc ~/matti/rHazen16S/rhazen_paired.assembled.fastq -o ~/matti/rHazen16S/
+
+echo "3. convert fastq to fasta and qual files"
+convert_fastaqual_fastq.py -c fastq_to_fastaqual -f ~/matti/qHazen16S/qhazen_paired.assembled.fastq -o ~/matti/qHazen16S/
+convert_fastaqual_fastq.py -c fastq_to_fastaqual -f ~/matti/rHazen16S/rhazen_paired.assembled.fastq -o ~/matti/rHazen16S/
+
+echo "4. check the mapping file"
+validate_mapping_file.py -m ~/matti/qHazen16S/qhazen_map_meta.txt -o ~/matti/qHazen16S/
+validate_mapping_file.py -m ~/matti/rHazen16S/rhazen_map_meta.txt -o ~/matti/rHazen16S/
+
+echo "5. split libraries according to the mapping file, remove both forward and reverse primers, barcode length 8, min length 350, max length 500, quality filter to remove N and nucleotides with avg quality scores under 28 in a window of 2"
+split_libraries.py -m ~/matti/qHazen16S/qhazen_map_meta_corrected.txt -f ~/matti/qHazen16S/qhazen_paired.assembled.fna -q ~/matti/qHazen16S/qhazen_paired.assembled.qual -o ~/matti/qHazen16S/ -z truncate_remove -b 8 -l 350 -L 500 -s 28 -w 2 -x
+split_libraries.py -m ~/matti/rHazen16S/rhazen_map_meta_corrected.txt -f ~/matti/rHazen16S/rhazen_paired.assembled.fna -q ~/matti/rHazen16S/rhazen_paired.assembled.qual -o ~/matti/rHazen16S/ -z truncate_remove -b 8 -l 350 -L 500 -s 28 -w 2 -x
+
+echo "6. combine files for chimera picking and clustering"
+cat ~/matti/qHazen16S/seqs.fna ~/matti/rHazen16S/seqs.fna > ~/matti/Hazen16S/combined_seqs.fna
+
+echo "7. pick chimeras with vsearch uchime against the whole SILVA 128 Nr database and remove them"
+vsearch --uchime_ref ~/matti/Hazen16S/combined_seqs.fna --db ~/matti/SILVA/SILVA_128_SSURef_Nr99_tax_silva_short_dna.fasta --nonchimeras ~/matti/Hazen16S/seqs_chimeras_filtered.fna --uchimeout ~/matti/Hazen16S/chimeras_log.txt
+
+echo "8. dereplicate sequences with vsearch"
+mkdir -p ~/matti/Hazen16S/swarm
+vsearch --derep_fulllength ~/matti/Hazen16S/seqs_chimeras_filtered.fna --output ~/matti/Hazen16S/swarm/dereplicated.fna -uc ~/matti/Hazen16S/swarm/dereplicated.uc --sizeout
+uc_to_OTU_table.R -c ~/matti/Hazen16S/swarm/dereplicated.uc -o ~/matti/Hazen16S/swarm/ -f ~/matti/Hazen16S/swarm/dereplicated.fna
+awk -F ";|=" '/^>/{print $3}' ~/matti/Hazen16S/swarm/dereplicated.fna > ~/matti/Hazen16S/swarm/dereplicated_abundance.txt
+awk 'FNR==NR{a[++i]=$1;next} /^>/{print $1 "_" a[++j]}!/^>/{print}' ~/matti/Hazen16S/swarm/dereplicated_abundance.txt ~/matti/Hazen16S/swarm/dereplicated_renamed.fasta > ~/matti/Hazen16S/swarm/dereplicated_abundance.fasta
+
+echo "9. cluster sequences with Swarm v2 and make an OTU table with custom R script"
+swarm -f -o ~/matti/Hazen16S/swarm/otu_map.txt -t 80 -s ~/matti/Hazen16S/swarm/swarm_statistics.txt ~/matti/Hazen16S/swarm/dereplicated_abundance.fasta
+swarm_construct_otu_table.R -i ~/matti/Hazen16S/swarm/otu_map.txt -t ~/matti/Hazen16S/swarm/otu_table.txt -o ~/matti/Hazen16S/swarm/
+awk -v OFS="\t" '$1=$1' ~/matti/Hazen16S/swarm/swarm_otu_table.txt > ~/matti/Hazen16S/swarm/swarm_otu_table_with_singletons.txt
+biom convert -i ~/matti/Hazen16S/swarm/swarm_otu_table_with_singletons.txt -o ~/matti/Hazen16S/swarm_otu_table_with_singletons.biom --table-type="OTU table" --to-json
+
+echo "10. remove singleton OTUs from the OTU table and subset the swarm fasta file to no singleton cluster seeds"
+awk '{for(i=2; i<=NF;i++) j+=$i; if(j==1){j=0; next}; print $0; j=0}' ~/matti/Hazen16S/swarm/swarm_otu_table.txt > ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.tmp
+awk -v OFS="\t" '$1=$1' ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.tmp > ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.txt
+rm ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.tmp
+awk '{print $1}' ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.txt > ~/matti/Hazen16S/swarm/swarm_cluster_seed_list.txt
+faSomeRecords ~/matti/Hazen16S/swarm/dereplicated_renamed.fasta ~/matti/Hazen16S/swarm/swarm_cluster_seed_list.txt ~/matti/Hazen16S/swarm/swarm_cluster_seeds.fasta
+
+echo "11. convert OTU table to json and CSS normalize with QIIME"
+biom convert -i ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.txt -o ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.biom --table-type="OTU table" --to-json
+normalize_table.py -i ~/matti/Hazen16S/swarm/swarm_otu_table_no_singletons.biom -a CSS -o ~/matti/Hazen16S/otu_table_normalized.biom
+
+echo "12. transcribe swarm cluster seeds to rna so they can be aligned to the SILVA 128 SSU database"
+sed '/^[^>]/ y/tT/uU/' ~/matti/Hazen16S/swarm/swarm_cluster_seeds.fasta > ~/matti/Hazen16S/swarm_cluster_seeds_rna.fasta
+
+echo "13. match reads to taxonomy with parallel SINA"
+sina -i ~/matti/Hazen16S/swarm_cluster_seeds_rna.fasta -o ~/matti/Hazen16S/swarm_cluster_seeds_rna_aligned.fasta --ptdb ~/matti/SILVA/SSURef_NR99_128_SILVA_07_09_16_opt.arb --search --search-db ~/matti/SILVA/SSURef_NR99_128_SILVA_07_09_16_opt.arb --meta-fmt csv --lca-fields tax_slv --log-file ~/matti/Hazen16S/swarm_cluster.log
+
+echo "14. trim alignments with trimAl for de novo tree building"
+trimal -in ~/matti/Hazen16S/swarm_cluster_seeds_rna_aligned.fasta -out ~/matti/Hazen16S/cluster_seeds_aligned_trimal.fasta -automated1
+awk -F " " '/^>/{$0=$1}1' ~/matti/Hazen16S/cluster_seeds_aligned_trimal.fasta > ~/matti/Hazen16S/cluster_seeds_aligned_trimal_renamed.fasta
+
+echo "15. build tree with fasttree"
+FastTreeMP -gtr -gamma -nt ~/matti/Hazen16S/cluster_seeds_aligned_trimal_renamed.fasta > ~/matti/Hazen16S/hazen_tree.tre
