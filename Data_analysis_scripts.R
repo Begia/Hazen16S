@@ -10,7 +10,7 @@ biocLite("BiocUpgrade")
 
 packages <- c("biomformat", "ggplot2", "phangorn", "ape", "plyr", "magrittr", "scales", "data.table", "ranger",
               "knitr", "edarf", "checkmate", "hopach", "svglite", "caret", "e1071",
-              "ggthemes", "ggfortify", "devtools", "phyloseq", "vegan", "stringi", "lme4", "quantreg", "ggbiplot", "NbClust")
+              "ggthemes", "ggfortify", "devtools", "phyloseq", "vegan", "stringi", "lme4", "quantreg", "ggbiplot", "NbClust", "Rtsne", "dbscan")
 
 ipak <- function(pkg) {
   new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
@@ -24,7 +24,7 @@ ipak(packages)
 source("C:/Users/Matti/Dropbox/Matti-Alex/R/miseqR.R")
 
 
-theme_set(theme_tufte(base_family = "sans", base_size = 16) + theme(panel.border = element_rect(colour = "black", fill = NA), 
+theme_set(theme_tufte(base_family = "sans", base_size = 18) + theme(panel.border = element_rect(colour = "black", fill = NA), 
                                                     axis.text = element_text(colour = "black", size = 18)))
 
 #function for calculating standard error
@@ -68,7 +68,6 @@ rarec <- function (x, step = 20, sample, xlab = "Sample Size", ylab = "OTUs",
   }
   invisible(out)
 }
-
 
 #import the tree, normalized biom file, mapping files and SINA metadata
 hazen_tree <- read_tree("D:/VirtualBox/VirtualBox Share/16S/Hazen16S/hazen_tree.tre")
@@ -142,12 +141,19 @@ if (i == 3) {
 
 phyloseqs[[i]] <- phyloseq(otu_table(phyloseqs[[i]]), tax_tables[[i]], mapping_files[[i]], trees[[i]])
 }
+#garbage collection, free up RAM
+rm(SILVA_128_taxonomy, tax_refinement, over_99, to_refine, SINA_refined, SINA_csv, hazensummer_a_SINA_csv, hazensummer_b_SINA_csv)
+gc()
 
 
 #set sample levels for the main and all following data sets
 sample_data(phyloseqs[[1]])$X.SampleID <- paste(sub(".*([0-9]{4})$","\\1",sample_data(phyloseqs[[1]])$Description), gsub("\\.", " ", sample_data(phyloseqs[[1]])$Site),sample_data(phyloseqs[[1]])$Depth.cm,"cm",sep=" ",collapse=NULL)
 sample_data(phyloseqs[[2]])$X.SampleID <- paste(gsub("\\.", " ", sample_data(phyloseqs[[2]])$Site),sample_data(phyloseqs[[2]])$Depth.cm,"cm",sep=" ",collapse=NULL)
 sample_data(phyloseqs[[3]])$X.SampleID <- paste(gsub("\\.", " ", sample_data(phyloseqs[[3]])$Site),sample_data(phyloseqs[[3]])$Depth.cm,"cm",sep=" ",collapse=NULL)
+
+#remove John's Island
+#phyloseqs[[1]] <- subset_samples(phyloseqs[[1]], !(Site %in% "Johns.Island"))
+#phyloseqs[[1]] <- prune_taxa(taxa_sums(phyloseqs[[1]]) > 0, phyloseqs[[1]])
 
 sample_levels <-
   c("2014 Snowgoose Bay 0.25 cm",
@@ -241,14 +247,14 @@ if (i == 1) {
 
 #the following commands ran at CAC cluster
 # biom convert -i ~/matti/Hazen16S/hazen_all_qcd.txt -o ~/matti/Hazen16S/hazen_all_qcd.biom --table-type="OTU table" --to-json
-# python ~/bin/FAPROTAX_1.0/collapse_table.py -i "/home/hpc3229/matti/Hazen16S/hazen_all_qcd.biom" -o ~/matti/Hazen16S/hazen_func_table.biom -g bin/FAPROTAX_1.0/FAPROTAX_Hazen.txt --collapse_by_metadata 'taxonomy' --group_leftovers_as 'other' --out_group_overlaps ~/matti/Hazen16S/hazen_func_table_overlaps.txt --output_format_group_overlaps classical  -l ~/matti/Hazen16S/hazen_FAPROTAX.log --disable_group_set_operations --out_groups2records_table ~/matti/Hazen16S/hazen_func_table_groups.txt -v --force
-# biom convert -i "/home/hpc3229/matti/Hazen16S/hazen_func_table.biom" -o "/home/hpc3229/matti/Hazen16S/hazen_func_table.txt" --to-tsv
+# python ~/bin/FAPROTAX_1.0/collapse_table.py -i ~/matti/Hazen16S/hazen_all_qcd.biom -o ~/matti/Hazen16S/hazen_func_table.biom -g ~/bin/FAPROTAX_1.0/FAPROTAX_Hazen.txt --collapse_by_metadata 'taxonomy' --group_leftovers_as 'other' --out_group_overlaps ~/matti/Hazen16S/hazen_func_table_overlaps.txt --output_format_group_overlaps classical  -l ~/matti/Hazen16S/hazen_FAPROTAX.log --disable_group_set_operations --out_groups2records_table ~/matti/Hazen16S/hazen_func_table_groups.txt -v --force
+# biom convert -i ~/matti/Hazen16S/hazen_func_table.biom -o ~/matti/Hazen16S/hazen_func_table.txt --to-tsv
 # biom convert -i ~/matti/hazensummer_a/hazensummer_a_qcd.txt -o ~/matti/hazensummer_a/hazensummer_a_qcd.biom --table-type="OTU table" --to-json
-# python ~/bin/FAPROTAX_1.0/collapse_table.py -i "/home/hpc3229/matti/hazensummer_a/hazensummer_a_qcd.biom" -o ~/matti/hazensummer_a/hazensummer_a_func_table.biom -g bin/FAPROTAX_1.0/FAPROTAX_Hazen.txt --collapse_by_metadata 'taxonomy' --group_leftovers_as 'other' --out_group_overlaps ~/matti/hazensummer_a/hazensummer_a_func_table_overlaps.txt --output_format_group_overlaps classical -l ~/matti/hazensummer_a/hazensummer_a_FAPROTAX.log --disable_group_set_operations --out_groups2records_table ~/matti/hazensummer_a/hazensummer_a_func_table_groups.txt -v --force
-# biom convert -i "/home/hpc3229/matti/hazensummer_a/hazensummer_a_func_table.biom" -o "/home/hpc3229/matti/hazensummer_a/hazensummer_a_func_table.txt" --to-tsv
+# python ~/bin/FAPROTAX_1.0/collapse_table.py -i ~/matti/hazensummer_a/hazensummer_a_qcd.biom -o ~/matti/hazensummer_a/hazensummer_a_func_table.biom -g bin/FAPROTAX_1.0/FAPROTAX_Hazen.txt --collapse_by_metadata 'taxonomy' --group_leftovers_as 'other' --out_group_overlaps ~/matti/hazensummer_a/hazensummer_a_func_table_overlaps.txt --output_format_group_overlaps classical -l ~/matti/hazensummer_a/hazensummer_a_FAPROTAX.log --disable_group_set_operations --out_groups2records_table ~/matti/hazensummer_a/hazensummer_a_func_table_groups.txt -v --force
+# biom convert -i ~/matti/hazensummer_a/hazensummer_a_func_table.biom -o ~/matti/hazensummer_a/hazensummer_a_func_table.txt --to-tsv
 # biom convert -i ~/matti/hazensummer_b/hazensummer_b_qcd.txt -o ~/matti/hazensummer_b/hazensummer_b_qcd.biom --table-type="OTU table" --to-json
-# python ~/bin/FAPROTAX_1.0/collapse_table.py -i "/home/hpc3229/matti/hazensummer_b/hazensummer_b_qcd.biom" -o ~/matti/hazensummer_b/hazensummer_b_func_table.biom -g bin/FAPROTAX_1.0/FAPROTAX_Hazen.txt --collapse_by_metadata 'taxonomy' --group_leftovers_as 'other' --out_group_overlaps ~/matti/hazensummer_b/hazensummer_b_func_table_overlaps.txt --output_format_group_overlaps classical -l ~/matti/hazensummer_b/hazensummer_b_FAPROTAX.log --disable_group_set_operations --out_groups2records_table ~/matti/hazensummer_a/hazensummer_a_func_table_groups.txt -v --force
-# biom convert -i "/home/hpc3229/matti/hazensummer_b/hazensummer_b_func_table.biom" -o "/home/hpc3229/matti/hazensummer_b/hazensummer_b_func_table.txt" --to-tsv
+# python ~/bin/FAPROTAX_1.0/collapse_table.py -i ~/matti/hazensummer_b/hazensummer_b_qcd.biom -o ~/matti/hazensummer_b/hazensummer_b_func_table.biom -g bin/FAPROTAX_1.0/FAPROTAX_Hazen.txt --collapse_by_metadata 'taxonomy' --group_leftovers_as 'other' --out_group_overlaps ~/matti/hazensummer_b/hazensummer_b_func_table_overlaps.txt --output_format_group_overlaps classical -l ~/matti/hazensummer_b/hazensummer_b_FAPROTAX.log --disable_group_set_operations --out_groups2records_table ~/matti/hazensummer_a/hazensummer_a_func_table_groups.txt -v --force
+# biom convert -i ~/matti/hazensummer_b/hazensummer_b_func_table.biom -o ~/matti/hazensummer_b/hazensummer_b_func_table.txt --to-tsv
 
 #further conversion and FAPROTAX analysis done here in one big for loop running once for each separate dataset
 bioms <- list(NULL)
@@ -260,6 +266,7 @@ phyla_relative_abundances <- list(NULL)
 func_abundances <- list(NULL)
 func_relative_abundances <- list(NULL)
 mantels <- list(NULL)
+func_data <- list(NULL)
 for (i in 1:length(phyloseqs)) {
 #reimport the FAPROTAX data
 if (i == 1) {
@@ -273,6 +280,8 @@ colnames(func) <- sample_names(phyloseqs[[i]])
 func <- phyloseq(otu_table(func,taxa_are_rows = T), sample_data(phyloseqs[[i]]))
 func <- prune_taxa(taxa_sums(func)>0, func)
 func_pruned <- prune_taxa(!(taxa_names(func) %in% "other"),func)
+
+
 
 #capitalize function names and remove underscores
 rownames(otu_table(func_pruned)) <- paste(toupper(substr(rownames(otu_table(func_pruned)), 1, 1)), substr(rownames(otu_table(func_pruned)), 2, nchar(rownames(otu_table(func_pruned)))), sep="")
@@ -424,20 +433,27 @@ bars <- data.frame(t(otu_table(phyla)))
 darkcols <- darkcols[(length(darkcols)+1-ncol(bars)):length(darkcols)]
 colnames(bars) <- c(tax_table(phyla)[,2])
 phyla_levels <- phyla_levels_all[phyla_levels_all %in% colnames(bars)]
-bars <- bars[,rev(phyla_levels)]
+bars <- bars[,phyla_levels]
 bars <- melt(as.matrix(bars), varnames=c("Sample", "Phylum"), value.name="Abundance")
-bars$Phylum <- factor(bars$Phylum, levels = phyla_levels)
+bars$Phylum <- factor(bars$Phylum, levels = rev(phyla_levels))
 phyla_relative_abundances[[i]] <- bars
 if (i == 1) {
-  image <- ggplot(bars, aes(x=factor(Sample), y=Abundance, fill=Phylum)) + scale_x_discrete(limits=sample_levels) + geom_bar(stat="identity") + 
-    scale_fill_manual(values=darkcols, name = "Phylum") + theme(axis.text.x = element_text(angle = 90, vjust = 0.25, hjust = 1, size = 14), panel.border = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) +
-    xlab("Sample") + ylab("Abundance (%)")
-  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_phyla_bars.svg"), plot=image, units="mm", width=300, height=200)
+  for (a in 1:5) {
+  indices <- c(4, 10, 15, 21, 27)
+  empty_levels <- c("a", "b", "c", "d", "e")
+  sample_levels <- append(sample_levels, empty_levels[a], after = indices[a])
+  }
+  bars <- rbind(bars, data.frame(Sample = empty_levels, Phylum = levels(bars$Phylum)[1], Abundance = 0))
+  
+  p1 <- ggplot(bars, aes(x=factor(Sample), y=Abundance, fill=factor(Phylum))) + scale_x_discrete(limits=rev(sample_levels), breaks = bars$Sample[nchar(as.character(bars$Sample))!=1]) + geom_bar(stat="identity") + 
+    scale_fill_manual(values=rev(darkcols), name = "Phylum", guide = guide_legend(reverse = T)) + theme(axis.text.y = element_text(hjust = 0, size = 22), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5)) +
+    xlab("Sample") + ylab("Abundance (%)") + coord_flip() + ggtitle("Taxonomy")
 } else {
-  image <- ggplot(bars, aes(x=factor(Sample), y=Abundance, fill=Phylum)) + scale_x_discrete(limits=sample_levels_summer) + geom_bar(stat="identity") + 
-    scale_fill_manual(values=darkcols, name = "Phylum") + theme(axis.text.x = element_text(angle = 90, vjust = 0.25, hjust = 1, size = 14), panel.border = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank())+
-    xlab("Sample") + ylab("Abundance (%)")
-  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_phyla_bars.svg"), plot=image, units="mm", width=300, height=200)
+  if (!any(sample_levels_summer %in% "a")) {sample_levels_summer <- append(sample_levels_summer, "a", after = 8)}
+  bars <- rbind(bars, data.frame(Sample = "a", Phylum = levels(bars$Phylum)[1], Abundance = 0))
+  p1 <- ggplot(bars, aes(x=factor(Sample), y=Abundance, fill=factor(Phylum))) + scale_x_discrete(limits=rev(sample_levels_summer), breaks = bars$Sample[nchar(as.character(bars$Sample))!=1]) + geom_bar(stat="identity") + 
+    scale_fill_manual(values=rev(darkcols), name = "Phylum", guide = guide_legend(reverse = T)) + theme(axis.text.y = element_text(hjust = 0, size = 22), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5))+
+    xlab("Sample") + ylab("Abundance (%)") + coord_flip() + ggtitle("Taxonomy")
 }
 
 
@@ -478,21 +494,54 @@ funcolors <- c("#999999",
                "#3d957a",
                "#b0c8a9")
 
-funcolors <- rev(funcolors[1:(length(bars_func))])
+if (!any(colnames(bars_func) %in% "Other classified")) {
+  funcolors <- rev(funcolors[2:(length(bars_func)+1)])
+} else {
+  funcolors <- rev(funcolors[1:(length(bars_func))])
+  }
 bars_func <- melt(as.matrix(bars_func), varnames=c("Sample", "Function"), value.name="Abundance")
 bars_func <- rbind(bars_func[bars_func$Function %in% "Other classified",], bars_func[!bars_func$Function %in% "Other classified",])
 bars_func <- bars_func[order(-1:-nrow(bars_func)),]
+bars_func$Function <- factor(bars_func$Function, levels = rev(levels(bars_func$Function)))
 func_relative_abundances[[i]] <- bars_func
 if (i == 1) {
-  image <- ggplot(bars_func, aes(x=factor(Sample), y=Abundance, fill=factor(Function))) + scale_x_discrete(limits=sample_levels) + geom_bar(stat="identity") + 
-    scale_fill_manual(values=funcolors, name = "Function") + theme(axis.text.x = element_text(angle = 90, vjust = 0.25, hjust = 1, size = 14), panel.border = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) +
-    xlab("Sample") + ylab("Abundance (%)")
-  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_bars.svg"), plot=image, units="mm", width=300, height=200)
+  bars_func <- rbind(bars_func, data.frame(Sample = empty_levels, Function = levels(bars_func$Function)[1], Abundance = 0))
+  p2 <- ggplot(bars_func, aes(x=factor(Sample), y=Abundance, fill=factor(Function))) + scale_x_discrete(limits=rev(sample_levels), breaks=bars$Sample[nchar(as.character(bars$Sample))!=1]) + geom_bar(stat="identity") + 
+    scale_fill_manual(values=rev(funcolors), name = "Function", guide=guide_legend(reverse=T)) + theme(axis.text.y = element_blank(), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5)) +
+    ylab("Abundance (%)") + coord_flip() + ggtitle("Functional mapping")
 } else {
-  image <- ggplot(bars_func, aes(x=factor(Sample), y=Abundance, fill=factor(Function))) + scale_x_discrete(limits=sample_levels_summer) + geom_bar(stat="identity") + 
-    scale_fill_manual(values=funcolors, name = "Function") + theme(axis.text.x = element_text(angle = 90, vjust = 0.25, hjust = 1, size = 14), panel.border = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) +
+  bars_func <- rbind(bars_func, data.frame(Sample = "a", Function = levels(bars_func$Function)[1], Abundance = 0))
+  p2 <- ggplot(bars_func, aes(x=factor(Sample), y=Abundance, fill=factor(Function))) + scale_x_discrete(limits=rev(sample_levels_summer), breaks=bars$Sample[nchar(as.character(bars$Sample))!=1]) + geom_bar(stat="identity") + 
+    scale_fill_manual(values=rev(funcolors), name = "Function", guide=guide_legend(reverse=T)) + theme(axis.text.y = element_blank(), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5)) +
+    ylab("Abundance (%)") + coord_flip() + ggtitle("Functional mapping")
+  }
+
+#plot aerobic and anaerobic functions
+aerobic_frame <- data.frame(otu_table(func_pruned))
+rownames(aerobic_frame) <- taxa_names(func)[-grep("other", taxa_names(func))]
+lookup_aerobic <- read.table("D:/VirtualBox/VirtualBox Share/16S/Hazen16S/FAPROTAX_aerobic_table.txt", header = T, row.names = 1, sep = "\t")
+aerobic_frame$aerobic <- rownames(aerobic_frame)
+aerobic_frame$aerobic  <- mapvalues(aerobic_frame$aerobic, from = rownames(lookup_aerobic), to = as.vector(lookup_aerobic$aerobic))
+aerobic_frame <- aggregate(. ~ aerobic, data = aerobic_frame, sum)
+rownames(aerobic_frame) <- aerobic_frame$aerobic
+aerobic_frame[1] <- list(NULL)
+colnames(aerobic_frame) <- colnames(otu_table(func_pruned_bar))
+aerobic_frame_bar <- prop.table(as.matrix(aerobic_frame), margin=2)*100
+aerobic_frame_bar <- t(aerobic_frame_bar)
+aerobic_frame_bar <- melt(as.matrix(aerobic_frame_bar), varnames=c("Sample", "Aerobic"), value.name="Abundance")
+levels(aerobic_frame_bar$Aerobic) <- c("yes", "variable", "no")
+aerobiccolors <- c("#2e8286", "#999999", "#6f2f2c")
+
+if (i == 1) {
+  image <- ggplot(aerobic_frame_bar, aes(x=factor(Sample), y=Abundance, fill=forcats::fct_rev(factor(Aerobic)))) + scale_x_discrete(limits=sample_levels) + geom_bar(stat="identity") + 
+    scale_fill_manual(values=aerobiccolors, name = "Aerobic") + theme(axis.text.x = element_text(angle = 90, vjust = 0.25, hjust = 1, size = 14), panel.border = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) +
     xlab("Sample") + ylab("Abundance (%)")
-  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_bars.svg"), plot=image, units="mm", width=300, height=200)
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_aerobic_bars.svg"), plot=image, units="mm", width=300, height=200)
+} else {
+  image <- ggplot(aerobic_frame_bar, aes(x=factor(Sample), y=Abundance, fill=forcats::fct_rev(factor(Aerobic)))) + scale_x_discrete(limits=sample_levels_summer) + geom_bar(stat="identity") + 
+    scale_fill_manual(values=aerobiccolors, name = "Aerobic") + theme(axis.text.x = element_text(angle = 90, vjust = 0.25, hjust = 1, size = 14), panel.border = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank()) +
+    xlab("Sample") + ylab("Abundance (%)")
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_aerobic_bars.svg"), plot=image, units="mm", width=300, height=200)
 }
 
 bioms[[i]] <- biom_non_normalized
@@ -501,25 +550,19 @@ non_normalized <- phyloseq(bioms[[i]], tax_tables[[i]], sample_data(phyloseqs[[i
 #fix sample data at this point
 if (i == 1) {
   bad_columns <- c("X.SampleID", "BarcodeSequence", "LinkerPrimerSequence", "BarcodeName", "ReversePrimer")
+  column_order <- c("Lake", "Site", "Year", "Description", "H2S.uM", "Depth.cm", "Wdepth.m", "pH", "Redox.mV", "O2.mgL", "n.seq")
   } else {
-    # Projectname, Water depth and H2S are not needed for the Summer 2015 set
-  bad_columns <- c("X.SampleID", "BarcodeSequence", "LinkerPrimerSequence", "BarcodeName", "ProjectName", "ReversePrimer", "Wdepth.m", "H2S.umolL")
+    # Projectname and Water depth are not needed for the Summer 2015 set
+  bad_columns <- c("X.SampleID", "BarcodeSequence", "LinkerPrimerSequence", "BarcodeName", "ProjectName", "ReversePrimer", "Wdepth.m")
+  column_order <- c("Site", "Description", "Depth.cm", "pH", "O2.mgL", "NO3.mgL", "Cl.mgL", "SO42.mgL", "n.seq")
 }
 sample_data_replacement <- data.frame(sample_data(phyloseqs[[i]])[, !(colnames(sample_data(phyloseqs[[i]])) %in% bad_columns)])
 sample_data_replacement$Depth.cm <- as.numeric(as.character(sample_data_replacement$Depth.cm))
-sample_data_replacement$O2.mgL <- as.numeric(as.character(sample_data_replacement$O2.mgL))
-sample_data_replacement$O2.mgL[sample_data_replacement$O2.mgL < 0] <- 0
-sample_data_replacement$pH <- as.numeric(as.character(sample_data_replacement$pH))
 #get number of sequences as number of non-normalized non-singleton reads per sample
 sample_data_replacement$n.seq <- as.numeric(sample_sums(prune_taxa(!taxa_sums(non_normalized) == 1,non_normalized)))
 #sample_data_replacement$n.seq <- as.numeric(sample_sums(phyloseqs[[i]]))
 
 if (i == 1) {
-  sample_data_replacement$Wdepth.m <- as.numeric(as.character(sample_data_replacement$Wdepth.m))
-  sample_data_replacement$Redox.mV <- as.numeric(as.character(sample_data_replacement$Redox.mV))
-  sample_data_replacement$H2S.uM <- as.numeric(as.character(sample_data_replacement$H2S.uM))
-  sample_data_replacement$H2S.uM[is.na(sample_data_replacement$H2S.uM)] <- 0
-  sample_data_replacement$H2S.uM[sample_data_replacement$H2S.uM < 0] <- 0
   sample_data_replacement <- within(sample_data_replacement, {Lake = ifelse(Site %in% "Skeleton.Lake", "Skeleton.Lake", "Lake.Hazen")})
   sample_data_replacement$Lake <- gsub("\\.", " ", sample_data_replacement$Lake)
   sample_data_replacement$Lake <- factor(sample_data_replacement$Lake)
@@ -535,10 +578,97 @@ sample_data_replacement$Site <- factor(sample_data_replacement$Site)
 sample_data_replacement[apply(sample_data_replacement, 2, function(x) grepl("ND", x))] <- NA
 sample_data_replacement <- sample_data_replacement[, apply(sample_data_replacement, 2, function(x) !any(is.na(x)))]
 
+#microprobe data
+if (i == 1) {
+  microprobe_data <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazen_all_microprobes.csv",sep="\t")
+  microprobe_2014 <- microprobe_data[grep("2014", microprobe_data$Core),]
+  microprobe_2014 <- transform(microprobe_2014, bin = cut(Depth.mm, breaks = seq(0,10,by=2.5), include.lowest = T))
+  microprobe_2015 <- microprobe_data[grep("2015", microprobe_data$Core),]
+  microprobe_2015 <- transform(microprobe_2015, bin = cut(Depth.mm, breaks = seq(0,50,by=10), include.lowest = T))
+  microprobe_data <- rbind(microprobe_2014, microprobe_2015)
+
+} else {
+  microprobe_data <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazensummer_microprobes.csv",sep="\t")
+  microprobe_data <- transform(microprobe_data, bin = cut(Depth.mm, breaks = seq(0,60,by=5), include.lowest = T))
+  chemistry_data <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazensummer_chemistry.csv",sep="\t", row.names = 1)
+  sample_rownames <- rownames(sample_data_replacement)[order(sample_data_replacement$Site, sample_data_replacement$Depth.cm)]
+  sample_data_replacement <- merge(sample_data_replacement, chemistry_data, by = c("Site", "Depth.cm"))
+  sample_data_replacement <- sample_data_replacement[order(sample_data_replacement$Site, sample_data_replacement$Depth.cm),]
+  rownames(sample_data_replacement) <- sample_rownames
+}
+
+microprobe_data_means <- ddply(microprobe_data, .(Core,bin), numcolwise(median))[-c(1:3)]
+microprobe_data_sds <- ddply(microprobe_data, .(Core,bin), numcolwise(sd))[,-c(1:3)]
+microprobe_data_sds$Sample <- rownames(sample_data_replacement)
+sample_data_replacement <- cbind(sample_data_replacement, microprobe_data_means)
+sample_data_replacement <- sample_data_replacement[column_order]
+
 
 sample_data(phyloseqs[[i]]) <- sample_data_replacement
 
 non_normalized <- phyloseq(bioms[[i]], tax_tables[[i]], sample_data(phyloseqs[[i]]), trees[[i]])
+
+if (i == 1) {
+  sample_data_plot <- sample_data_replacement[,-c(1,4,7,11)]
+  sample_data_plot$core <- apply(sample_data_plot[,c(2,1) ], 1, paste, collapse = " ")
+  sample_data_plot <- sample_data_plot[,-c(1,2)]
+  sample_data_plot$Depth.cm <- factor(sample_data_plot$Depth.cm)
+  sample_data_plot$Sample <- rownames(sample_data_plot)
+
+#scale variables for the plot
+  sample_data_plot$O2.mgL <- sample_data_plot$O2.mgL*(500/15)
+  microprobe_data_sds$O2.mgL <- microprobe_data_sds$O2.mgL*(500/15)
+  sample_data_plot$H2S.uM <- sample_data_plot$H2S.uM*(500/200)
+  microprobe_data_sds$H2S.uM <- microprobe_data_sds$H2S.uM*(500/200)
+  sample_data_plot$pH <- sample_data_plot$pH*(500/15)
+  microprobe_data_sds$pH <- microprobe_data_sds$pH*(500/15)
+
+  sample_data_plot <- merge(melt(sample_data_plot), melt(microprobe_data_sds), by = c("Sample", "variable"), all = T)
+  sample_data_plot$Depth.cm <- factor(sample_data_plot$Depth.cm, levels = rev(levels(sample_data_plot$Depth.cm)))
+  sample_data_plot$core <- factor(sample_data_plot$core, levels = c("2014 Snowgoose Bay", "2015 Snowgoose Bay", "2014 Deep Hole", "2015 Deep Hole", "2015 John's Island", "2015 Skeleton Lake"))
+  sample_data_plot$sdmin <- replace(sample_data_plot$value.x-sample_data_plot$value.y, sample_data_plot$value.x-sample_data_plot$value.y < 0, 0)
+  sample_data_plot$sdmax <- sample_data_plot$value.x+sample_data_plot$value.y
+
+  p3 <- ggplot(sample_data_plot, aes(x=Depth.cm, y=value.x, group=core)) + geom_point(aes(fill = variable, color = variable, shape = variable), size=7, alpha = 0.5) + facet_grid(core~., scales="free_y", space="free_y") + 
+  geom_errorbar(aes(ymin=sdmin, ymax=sdmax, color = variable), width = 0.5) + coord_flip() + scale_y_continuous(breaks = seq(0,500,100), limits = c(0,500)) +
+  scale_shape_manual(values = c("\u25CF", "\u25B2", "\u25C6", "\u25A0")) + scale_color_manual(values = c("#cc546d", "#6ca65c", "#000000", "#0ac5dc")) + ggtitle("Geochemistry") + #xlab("Depth from sediment surface (cm)") + 
+  theme(axis.text.y = element_text(hjust = 1, size = 22), panel.spacing = unit(2, "lines"), strip.text.y = element_blank(), axis.title.x = element_blank(), axis.title.y = element_blank(), legend.title = element_blank(), 
+        legend.position="bottom", plot.margin = unit(c(0.8,0.5,6.2,0.5), "lines"), plot.title = element_text(size=28, hjust = 0.5))
+
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_taxonomy_multiplot.svg"), plot=p1, units="in", width=10, height=20)
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_chemistry_multiplot.svg"), plot=p3, units="in", width=5, height=19)
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_function_multiplot.svg"), plot=p2, units="in", width=5.8, height=20)
+} else if (i == 2) {
+  sample_data_plot <- sample_data_replacement[,-c(2,9)]
+  sample_data_plot$Depth.cm <- factor(sample_data_plot$Depth.cm)
+  sample_data_plot$Sample <- rownames(sample_data_plot)
+  
+  #scale variables for the plot
+  sample_data_plot$SO42.mgL <- sample_data_plot$SO42.mgL/10 #scale for others 0-15, for sulfate 0-150
+  
+  sample_data_plot <- merge(melt(sample_data_plot), melt(microprobe_data_sds), by = c("Sample", "variable"), all = T)
+  sample_data_plot$Depth.cm <- factor(sample_data_plot$Depth.cm, levels = rev(levels(sample_data_plot$Depth.cm)))
+  sample_data_plot$sdmin <- replace(sample_data_plot$value.x-sample_data_plot$value.y, sample_data_plot$value.x-sample_data_plot$value.y < 0, 0)
+  sample_data_plot$sdmax <- sample_data_plot$value.x+sample_data_plot$value.y
+  
+  p3 <- ggplot(sample_data_plot, aes(x=Depth.cm, y=value.x, group=Site)) + geom_point(aes(fill = variable, color = variable, shape = variable), size=7, alpha = 0.5) + facet_grid(Site~., scales="free_y", space="free_y") + 
+    geom_errorbar(aes(ymin=sdmin, ymax=sdmax, color = variable), width = 0.5) + coord_flip() + scale_y_continuous(breaks = seq(0,12,2), limits = c(0,13)) +
+    scale_shape_manual(values = c("\u25B2", "\u25A0", "\u25BC", "\u25C6", "\u25CF")) + scale_color_manual( values = c("#6ca65c", "#0ac5dc", "#f8766d", "#7792db", "#db77ab")) + ggtitle("Geochemistry") + #xlab("Depth from sediment surface (cm)")  +
+    theme(axis.text.y = element_text(hjust = 1, size = 22), panel.spacing = unit(2, "lines"), strip.text.y = element_blank(), axis.title.x = element_blank(), axis.title.y = element_blank(), legend.title = element_blank(), 
+          legend.position="bottom", plot.margin = unit(c(0.8,0.5,6.2,0.5), "lines"), plot.title = element_text(size=28, hjust = 0.5))
+  
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_taxonomy_multiplot.svg"), plot=p1, units="in", width=8.8, height=10)
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_chemistry_multiplot.svg"), plot=p3, units="in", width=5, height=10.75)
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_function_multiplot.svg"), plot=p2, units="in", width=5.8, height=10.25)
+} else {
+  p1 <- p1 + guides(fill=guide_legend(nrow=1, reverse = T))
+  p2 <- p2 + guides(fill=guide_legend(nrow=1, reverse = T))
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_taxonomy_multiplot.svg"), plot=p1, units="in", width=8.8, height=10)
+  ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_function_multiplot.svg"), plot=p2, units="in", width=5.8, height=10)
+}
+
+rm(p1, p2, biom_non_normalized, data)
+gc()
 
 #check collinearity and separation of samples on physicochemical variables with PCA
 continuous_variables <- colnames(sample_data_replacement[,!(sapply(sample_data_replacement,is.factor))])
@@ -812,6 +942,9 @@ richness_frame <- data.frame(dataset=dataset_names[i],
                              r2.after = comp_models[[nfeatures]]$r.squared)
 richness_list[[i]] <- richness_frame
 
+rm(comp_models)
+gc()
+
 #plot sample sequencing depth distribution
 image <- ggplot(data.frame(sum = sample_sums(phyloseqs[[i]])), aes(sum)) + 
   geom_histogram(color = "black", fill = "indianred") +
@@ -819,7 +952,6 @@ image <- ggplot(data.frame(sum = sample_sums(phyloseqs[[i]])), aes(sum)) +
   xlab("Read counts") +
   ylab("Sample count")
 ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_sequencing_depth_distribution.svg"), plot=image, units="mm", width=300, height=300)
-
 
 #run envfit to look at the effect of categorical variables (and continuous, but those will be run through ordisurf/gam later on)
 sample_data(func_pruned) <- sample_data(phyloseqs[[i]])
@@ -832,12 +964,14 @@ func_env_distance <- vegdist(func_sample_data, method="euclidean")
 func_mantel <- mantel(func_distance, func_env_distance, method="pearson", permutations=10000)
 ef_func <- envfit(ordu_func,sample_data(func_pruned),permu=10000)
 sample_data(func_pruned) <- sample_data(phyloseqs[[i]])
+func_data[[i]] <- func_pruned
 
 #prune the datasets from rare taxa (less than 0.1 promille) for subsequent analysis with DPCoA
 taxa_sum <- sum(taxa_sums(phyloseqs[[i]]))
 taxa_pr <- sort((taxa_sums(phyloseqs[[i]])/taxa_sum)*100,TRUE)
 common_names <- names(taxa_pr[taxa_pr>=0.01])
 common <- prune_taxa(common_names, phyloseqs[[i]])
+
 #tax_table(phyloseqs[[i]])[rownames(tax_table(phyloseqs[[i]])) %in% omnipresent_otus[[i]],]
 sample_data(common) <- sample_data(common)[,-which(colnames(sample_data(common)) %in% "n.seq")]
 
@@ -850,6 +984,699 @@ common_env_distance <- vegdist(common_sample_data, method="euclidean")
 common_mantel <- mantel(common_distance$RaoDis, common_env_distance, method="pearson", permutations=10000)
 ef_common <- envfit(ordu_common,sample_data(common),permu=10000)
 sample_data(common) <- sample_data(phyloseqs[[i]])
+
+# #display a dendrogram of the samples based on DPCoA
+# common_hclust <- hclust(common_distance$RaoDis, method="average")
+# common_tip_labels <- as(get_variable(common, "Site"), "character")
+# plot(as.phylo(common_hclust), show.tip.label = TRUE, tip.color = "black")
+# tiplabels(common_tip_labels, col = cols, frame = "none", adj = -0.05, 
+#           cex = 0.7)
+# 
+# func_hclust <- hclust(func_distance, method="average")
+# func_tip_labels <- as(get_variable(func_pruned, "Site"), "character")
+# plot(as.phylo(func_hclust), show.tip.label = TRUE, tip.color = "black")
+# tiplabels(func_tip_labels, col = cols, frame = "none", adj = -0.05, 
+#           cex = 0.7)
+
+
+#clustering analysis on spring 2014/2015 samples
+if (i == 1) {
+cluster_palette <- c("#03ff00",
+                     "#d660cd",
+                     "#00e1ff",
+                     "#ffb100",
+                     "#e65141",
+                     "#9800ff")
+
+
+set.seed(42)
+rtsne_common <- data.frame(Rtsne(common_distance$RaoDis, is_distance = T, perplexity = 5)$Y)
+rownames(rtsne_common) <- sample_names(common)
+rtsne_common_clusters <- hdbscan(rtsne_common, xdist = vegdist(rtsne_common, "euclidean"), minPts = 3)
+rtsne_common <- cbind(rtsne_common, cluster = rtsne_common_clusters$cluster, site = sample_data(common)$Site, year = sample_data(common)$Year, depth = sample_data(common)$Depth.cm)
+image <- ggplot(data = rtsne_common, aes(x = X1, y = X2)) + stat_ellipse(level = 0.68, aes(color = factor(cluster)), linetype = 2, size = 1.5) +
+   geom_point(aes(color = factor(cluster), fill = site, size = depth), shape = 21, stroke = 2) +
+   geom_point(aes(alpha = as.character(year)), shape = 3, size=5) +
+   scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = cluster_palette) +
+   scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+                                                                                                       "#5199ff", #john's island
+                                                                                                       "#aac856", #skeleton lake
+                                                                                                       "#a67e48" #snowgoose bay
+   ), name = "Site") +
+   guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) + theme(axis.title = element_blank())
+ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_common_cluster_rtsne2.svg"), plot=image,
+      units="mm", width=300, height=300)
+
+
+#all functional mapping groups, Bray-Curtis dissimilarity
+set.seed(42)
+rtsne_func <- data.frame(Rtsne(func_distance, is_distance = T, perplexity = 5)$Y)
+rtsne_func_clusters <- hdbscan(rtsne_func, xdist = vegdist(rtsne_func, "euclidean"), minPts = 3)
+rtsne_func <- cbind(rtsne_func, cluster = rtsne_func_clusters$cluster, site = sample_data(func_pruned)$Site, year = sample_data(func_pruned)$Year, depth = sample_data(func_pruned)$Depth.cm)
+image <- ggplot(data = rtsne_func, aes(x = X1, y = X2)) + stat_ellipse(level = 0.68, aes(color = factor(cluster)), linetype = 2, size = 1.5) +
+  geom_point(aes(color = factor(cluster), fill = site, size = depth), shape = 21, stroke = 2) +
+  geom_point(aes(alpha = as.character(year)), shape = 3, size=5) +
+  scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = cluster_palette) +
+  scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+                                                                                                      "#5199ff", #john's island
+                                                                                                      "#aac856", #skeleton lake
+                                                                                                      "#a67e48" #snowgoose bay
+  ), name = "Site") +
+  guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) + theme(axis.title = element_blank())
+ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_cluster_rtsne2.svg"), plot=image,
+       units="mm", width=300, height=300)
+
+
+#all OTUs included in the functional mapping, DPCoA distance
+func_otus <- read.table("D:/VirtualBox/VirtualBox Share/16S/Hazen16S/hazen_func_table_groups.txt", header = T, row.names = 1)
+func_otu_names <- rowSums(func_otus)
+func_otu_names <- names(which(func_otu_names > 0))
+func_otu_only <- subset_taxa(phyloseqs[[i]], taxa_names(phyloseqs[[i]]) %in% func_otu_names)
+func_otu_only <- prune_taxa(taxa_sums(func_otu_only) > 0, func_otu_only)
+#midpoint root the tree before running DPCoA
+phy_tree(func_otu_only) = midpoint(phy_tree(func_otu_only))
+func_otu_only_diss <- DPCoA(func_otu_only)
+
+set.seed(42)
+rtsne_func_otu_only <- data.frame(Rtsne(func_otu_only_diss$RaoDis, is_distance = T, perplexity = 5)$Y)
+rownames(rtsne_func_otu_only) <- sample_names(func_otu_only)
+rtsne_func_otu_only_clusters <- hdbscan(rtsne_func_otu_only, xdist = vegdist(rtsne_func_otu_only, "euclidean"), minPts = 3)
+rtsne_func_otu_only <- cbind(rtsne_func_otu_only, cluster = rtsne_func_otu_only_clusters$cluster, site = sample_data(func_otu_only)$Site, year = sample_data(func_otu_only)$Year, depth = sample_data(func_otu_only)$Depth.cm)
+image <- ggplot(data = rtsne_func_otu_only, aes(x = X1, y = X2)) + stat_ellipse(level = 0.68, aes(color = factor(cluster)), linetype = 2, size = 1.5) +
+  geom_point(aes(color = factor(cluster), fill = site, size = depth), shape = 21, stroke = 2) +
+  geom_point(aes(alpha = as.character(year)), shape = 3, size=5) +
+  scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = c("black", cluster_palette)) +
+  scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+                                                                                                      "#5199ff", #john's island
+                                                                                                      "#aac856", #skeleton lake
+                                                                                                      "#a67e48" #snowgoose bay
+  ), name = "Site") +
+  guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) + theme(axis.title = element_blank())
+ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_func_otu_cluster_rtsne2.svg"), plot=image,
+       units="mm", width=300, height=300)
+
+#check functional group differences between groups
+
+#add lists to populate with random forest data
+models <- list(NULL)
+models_2 <- list(NULL)
+pd_data <- list(NULL)
+pd_data_2 <- list(NULL)
+plot_pd_data <- list(NULL)
+plot_pd_data_2 <- list(NULL)
+tax_level_nums <- NA
+full_model_errors <- list(NULL)
+model_errors_2 <- list(NULL)
+all_full_model_errors <- list(NULL)
+all_model_errors_2 <- list(NULL)
+
+#what are differences (both functional and taxonomic) between the functionally clustered groups
+for (l in 1:2) {
+  if (l == 1){predictors <- t(otu_table(func_pruned))} else {predictors <- t(otu_table(func_otu_only))}
+
+  response <- factor(rtsne_func$cluster)
+
+  rf_data <- data.frame(response, predictors)
+
+  #run random forest model
+  set.seed(42)
+  classify <- ranger(response ~ ., data = rf_data, num.trees=5000, importance="impurity")
+
+
+  #calculate model Kappa for the full model (inherently imbalanced data sets so we are using Cohen's Kappa to compare the models)
+  pred1 <- classify$predictions
+  kappa1 <- postResample(pred1, rf_data$response)[[2]]
+
+  #sort the data by feature importance
+  importances <- sort(importance(classify), decreasing = T)
+  #restrict the number of variables to something reasonable to help with memory management
+  if (length(importances) >= 250) {importances <- importances[1:250]}
+
+  #add one feature at a time to the model in order of importance and compare kappas
+
+  #reorder the sets
+  rf_data_2 <- rf_data[c("response", names(importances))]
+
+  comp_classify <- list(NULL)
+  kappa2 <- NA
+  for (k in 1:length(importances)) {
+    #if all the importances are below the mean (all are 0?) break the loop
+    if (k == 0) {break}
+    new_data <- data.frame(response=rf_data_2$response, rf_data_2[seq(2,k+1)])
+    set.seed(42)
+    comp_classify[[k]] <- ranger(response ~ ., data = new_data, num.trees=5000, importance="impurity")
+    pred2 <- comp_classify[[k]]$predictions
+    kappa2[k] <- postResample(pred2, new_data$response)[[2]]
+    if (kappa2[k] == 1) {
+      break
+    }
+  }
+  if (length(kappa2) == length(importances)) {
+    k <- min(which(kappa2 %in% max(kappa2)))
+  }
+  #this will store either values of the first "1" or the highest kappa value of all the models run
+  all_model_errors_2[[j]] <- kappa2[k]
+
+
+  #make partial dependence plots of the best model using all of the data
+  nfeatures <- comp_classify[[k]]$num.independent.variables
+  rf_data2 <- rf_data_2[1:(nfeatures+1)]
+  pd <- partial_dependence(comp_classify[[k]], vars=colnames(rf_data2)[-1], data=rf_data2, n=c(25,nrow(rf_data2)))
+  plot_pd_data <- plot_pd(pd)$data
+
+
+  plot_pd_data$variable <- gsub("\\.", " ", plot_pd_data$variable)
+  if (l == 1){taxonomy_glom <- prune_taxa(levels(plot_pd_data$variable), func_pruned)} else {taxonomy_glom <- prune_taxa(levels(plot_pd_data$variable), func_otu_only)}
+  taxonomy_data.frame <- data.frame(variable=rownames(otu_table(taxonomy_glom)))
+  taxonomy_merged <- merge(plot_pd_data,taxonomy_data.frame,by="variable")
+
+  pd_ggplot <- ggplot(data = taxonomy_merged, aes(value, prediction*100)) + geom_line(aes(colour=variable), size= 1) +
+    scale_x_continuous(trans="log2") + labs(x="Normalized abundance", y="Prediction (% chance to be classified)", colour="Function") +
+    facet_grid(class~variable, scales="free") + theme(legend.position="none")
+
+  if (l == 1) {
+    ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/func_clustering_pd.svg"), plot=pd_ggplot,
+           units="mm", width=300, height=200)
+  } else  {
+    ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/tax_clustering_pd.svg"), plot=pd_ggplot,
+           units="mm", width=300, height=200)
+  }
+}
+
+rm(comp_classify)
+gc()
+
+#check differences in physicochemistry between groups
+
+#what are differences in physicochemistry of the samples between the clustered groups
+for (l in 1:3) {
+  if (l == 1){
+    response <- factor(rtsne_common$cluster)
+    cluster_data_name <- "tax"
+  } else if (l == 2) {
+    response <- factor(rtsne_func$cluster)
+    cluster_data_name <- "func"
+  } else if (l == 3) {
+    response <- factor(rtsne_func_otu_only$cluster)
+    cluster_data_name <- "func_otu"
+  }
+
+  predictors <- data.frame(sample_data(func_pruned))[-c(4,11)]
+  predictors$core <- gsub("(.+)\\s[0-9].*","\\1",rownames(predictors))
+
+  rf_data <- data.frame(response, predictors)
+
+  #remove outlier data points
+  if (any(levels(response) %in% 0)) {
+    rf_data <- rf_data[-which(rf_data$response %in% 0),]
+    rf_data$response <- factor(rf_data$response)
+  }
+  
+  #run random forest model
+  set.seed(42)
+  classify <- ranger(response ~ ., data = rf_data, num.trees=5000, importance="impurity")
+
+
+  #calculate model Kappa for the full model (inherently imbalanced data sets so we are using Cohen's Kappa to compare the models)
+  pred1 <- classify$predictions
+  kappa1 <- postResample(pred1, rf_data$response)[[2]]
+
+  #sort the data by feature importance
+  importances <- sort(importance(classify), decreasing = T)
+
+  #add one feature at a time to the model in order of importance and compare kappas
+
+  #reorder the sets
+  rf_data_2 <- rf_data[c("response", names(importances))]
+
+  comp_classify <- list(NULL)
+  kappa2 <- NA
+  for (k in 1:length(importances)) {
+    #if all the importances are below the mean (all are 0?) break the loop
+    if (k == 0) {break}
+    new_data <- data.frame(response=rf_data_2$response, rf_data_2[seq(2,k+1)])
+    set.seed(42)
+    comp_classify[[k]] <- ranger(response ~ ., data = new_data, num.trees=5000, importance="impurity")
+    pred2 <- comp_classify[[k]]$predictions
+    kappa2[k] <- postResample(pred2, new_data$response)[[2]]
+    if (kappa2[k] == 1) {
+      break
+    }
+  }
+  if (length(kappa2) == length(importances)) {
+    k <- min(which(kappa2 %in% max(kappa2)))
+  }
+  #this will store either values of the first "1" or the highest kappa value of all the models run
+  all_model_errors_2[[j]] <- kappa2[k]
+
+
+  #make partial dependence plots of the best model using all of the data
+  nfeatures <- comp_classify[[k]]$num.independent.variables
+  rf_data2 <- rf_data_2[1:(nfeatures+1)]
+  pd <- partial_dependence(comp_classify[[k]], vars=colnames(rf_data2)[-1], data=rf_data2, n=c(25,nrow(rf_data2)))
+  plot_pd_continuous <- plot_pd(pd)$data
+  plot_pd_continuous <- na.omit(plot_pd_continuous)
+
+  if (nrow(plot_pd_continuous) > 0) {
+    #inset for the tax clustering
+    if (l == 1) {
+  plot_pd_continuous$variable <- gsub("\\.", " ", plot_pd_continuous$variable)
+  rf_data2 <- cbind(rf_data2, sample_data(common)[,c(2,3)])
+  rf_data2 <- rename(rf_data2, c("response" = "class"))
+  plot_pd_continuous2 <- merge(plot_pd_continuous, rf_data2, by = "class")
+  pd_continuous_ggplot2 <- ggplot(data = plot_pd_continuous2, aes(value, prediction*100)) + geom_line(aes(colour=class), size= 1.5) + #geom_vline(aes(xintercept=pH, colour=Site, linetype=Year), size = 1) +
+    labs(x="value", y="Prediction (% chance to be classified)") + scale_color_manual(name = "Cluster", values = c(cluster_palette[1:length(levels(plot_pd_continuous$class))]
+                                                                                                                 # , "#910a80", #deep hole
+                                                                                                                 #  "#5199ff", #john's island
+                                                                                                                 #  "#aac856", #skeleton lake
+                                                                                                                 #  "#a67e48" #snowgoose bay
+                                                                                                                  )) + 
+    scale_linetype_manual(values=c(2,1)) + theme(legend.position="none")
+    } 
+    plot_pd_continuous$variable <- gsub("\\.", " ", plot_pd_continuous$variable)
+    pd_continuous_ggplot <- ggplot(data = plot_pd_continuous, aes(value, prediction*100)) + geom_line(colour="black", size= 1) +
+      labs(x="value", y="Prediction (% chance to be classified)") + facet_grid(class~variable, scales="free") + 
+      theme(legend.position="none")
+    plotheight  <- 200
+  }
+
+  #gather, plot and save categorical variable partial dependency plot (if applicable)
+  if (any(colnames(pd) %in% c("core", "Site"))) {
+  pd_categorical <- pd[, which(colnames(pd) %in% c("core", "Site", levels(response)))]
+  pd_categorical <- pd_categorical[!apply(pd_categorical, 1, function (x) sum(is.na(x)) >= 2),]
+  pd_categorical <- melt(pd_categorical)
+  pd_categorical$type <- ifelse(is.na(pd_categorical$core),"site", "core")
+  if (length(levels(factor(pd_categorical$type))) > 1) {
+    pd_categorical <- as.data.frame(rbindlist(list(pd_categorical[which(is.na(pd_categorical$core)),-1],pd_categorical[which(is.na(pd_categorical$Site)),-2])))
+
+    pd_categorical_ggplot <- ggplot(data = pd_categorical, aes(x = Site, y = value*100)) + geom_bar(stat="identity") +
+      labs(y="Prediction (% chance to be classified", x="") + facet_grid(variable~type, scales = "free_x") +
+      theme(legend.position="none", axis.ticks.x=element_blank(), axis.text.x = element_text(size=14, angle=45, vjust=1, hjust=1), strip.text.x = element_text(size = 16), axis.title.y = element_text(size = 16))
+  } else {
+    pd_categorical_ggplot <- ggplot(data = pd_categorical, aes(x = core, y = value*100)) + geom_bar(stat="identity") +
+      labs(y="Prediction (% chance to be classified", x="") + facet_grid(variable~., scales = "free_x") +
+      theme(legend.position="none", axis.ticks.x=element_blank(), axis.text.x = element_text(size=14, angle=45, vjust=1, hjust=1), strip.text.x = element_text(size = 16), axis.title.y = element_text(size = 16))
+  }
+  }
+
+
+  if (nrow(plot_pd_continuous) > 0) {
+    ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", cluster_data_name, "_clustering_pd_continuous.svg"), plot=pd_continuous_ggplot,
+           units="mm", width=300, height=200)
+    if (l == 1) {
+      ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", cluster_data_name, "_clustering_pd_continuous_inset.svg"), plot=pd_continuous_ggplot2,
+             units="mm", width=300, height=150)
+    }
+  }
+  if (any(colnames(pd) %in% c("core", "Site"))) {
+    ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", cluster_data_name, "_clustering_pd_categorical.svg"), plot=pd_categorical_ggplot,
+           units="mm", width=300, height=200)
+  }
+}
+
+}
+
+# if (i == 1) {
+# #clustering analysis on Lake Hazen samples only
+# cluster_palette <- c("#00d092",
+#                      "#d660cd",
+#                      "#ae9300",
+#                      "#0167bc",
+#                      "#e65141",
+#                      "#6c0034",
+#                      "red",
+#                      "green",
+#                      "blue")
+# 
+# #all common >0.01% OTUs and DPCoA distance
+# common_hazen_only <- subset_samples(common, Lake %in% "Lake Hazen")
+# common_hazen_only <- prune_taxa(taxa_sums(common_hazen_only) > 0, common_hazen_only)
+# #midpoint root the tree before running DPCoA
+# phy_tree(common_hazen_only) = midpoint(phy_tree(common_hazen_only))
+# common_hazen_only_diss <- DPCoA(common_hazen_only)
+# common_hazen_only_matrix <- wisconsin(sqrt(veganifyOTU(common_hazen_only)))
+# bestk <- silcheck(common_hazen_only_diss$RaoDis, diss=TRUE)[1]
+# bestk2 <- hopach(data=common_hazen_only_matrix, dmat=common_hazen_only_diss$RaoDis, d= "euclid", clusters= "greedy")
+# part <- pam(common_hazen_only_diss$RaoDis, k=bestk, pamonce = 2)
+# part
+# 
+# sil_common_hazen_only <- data.frame(summary(part)$silinfo$widths)
+# sil_common_hazen_only$sample <- rownames(sil_common_hazen_only)
+# sil_common_hazen_only$sample <- factor(sil_common_hazen_only$sample, levels=sil_common_hazen_only$sample)
+# sil_common_hazen_only_avg <- ddply(sil_common_hazen_only,~cluster,summarise,avg=paste0("avg. width = ", round(mean(sil_width), 2)))
+# sil_common_hazen_only_avg <- merge(sil_common_hazen_only_avg, ddply(sil_common_hazen_only,~cluster,summarise,n=length(cluster)), by = "cluster")
+# 
+# image <- ggplot(data = sil_common_hazen_only, aes(x = sample, y = sil_width)) + geom_bar(stat = "identity") + facet_grid(cluster~., scales = "free_y") + coord_flip() + 
+#   geom_text(data = sil_common_hazen_only_avg, aes(x = n, y = 0.66, label = avg), colour = "black", size = 3) + ylab("Silhouette width") + 
+#   theme(axis.text.y = element_text(size=12))
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_common_silhouettes.svg"), plot=image,
+#        units="mm", width=300, height=300)
+# 
+# pca_common_hazen_only <- prcomp(common_hazen_only_diss$RaoDis)
+# image <- autoplot(pca_common_hazen_only, var.axes = F, alpha = 0, groups = factor(part$clustering)) +
+#  stat_ellipse(level = 0.68, aes(color = factor(part$clustering)), linetype = 2, size = 1.5) +
+#  geom_point(aes(color = factor(part$clustering), fill = sample_data(common_hazen_only)$Site, size = sample_data(common_hazen_only)$Depth.cm), shape = 21, stroke = 2) +
+#  geom_point(aes(alpha = as.character(sample_data(common_hazen_only)$Year)), shape = 3, size=5) +
+#  scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = cluster_palette) +
+#  scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+#                                                                                                      "#5199ff", #john's island
+#                                                                                                      "#a67e48" #snowgoose bay
+#  ), name = "Site") +
+#  guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) +
+#  xlab(paste0("PC1 (", round(100*summary(pca_common_hazen_only)$importance[2],1), "% explained var.)")) + ylab(paste0("PC2 (", round(100*summary(pca_common_hazen_only)$importance[5],1), "% explained var.)"))
+# 
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_common_cluster_pca.svg"), plot=image,
+#       units="mm", width=300, height=300)
+# 
+# set.seed(42)
+# rtsne_common_hazen_only <- data.frame(Rtsne(common_hazen_only_diss$RaoDis, is_distance = T, perplexity = 5)$Y)
+# rownames(rtsne_common_hazen_only) <- sample_names(common_hazen_only)
+# rtsne_common_hazen_only_clusters <- hdbscan(rtsne_common_hazen_only, xdist = vegdist(rtsne_common_hazen_only, "euclidean"), minPts = 3)
+# rtsne_common_hazen_only <- cbind(rtsne_common_hazen_only, cluster = rtsne_common_hazen_only_clusters$cluster, site = sample_data(common_hazen_only)$Site, year = sample_data(common_hazen_only)$Year, depth = sample_data(common_hazen_only)$Depth.cm)
+# image <- ggplot(data = rtsne_common_hazen_only, aes(x = X1, y = X2)) + stat_ellipse(level = 0.68, aes(color = factor(cluster)), linetype = 2, size = 1.5) + 
+#    geom_point(aes(color = factor(cluster), fill = site, size = depth), shape = 21, stroke = 2) +
+#    geom_point(aes(alpha = as.character(year)), shape = 3, size=5) +
+#    scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = cluster_palette) +
+#    scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+#                                                                                                        "#5199ff", #john's island
+#                                                                                                        "#a67e48" #snowgoose bay
+#    ), name = "Site") +
+#    guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) + theme(axis.title = element_blank())
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_common_cluster_rtsne.svg"), plot=image,
+#       units="mm", width=300, height=300)
+# 
+# 
+# #all functional mapping groups, Bray-Curtis dissimilarity
+# func_hazen_only <- subset_samples(func_pruned, Lake %in% "Lake Hazen")
+# func_hazen_only <- prune_taxa(taxa_sums(func_hazen_only) > 0, func_hazen_only)
+# func_hazen_only_matrix <- wisconsin(sqrt(veganifyOTU(func_hazen_only)))
+# func_hazen_only_diss <- vegdist(func_hazen_only_matrix, distance = "bray")
+# bestk_fun <- silcheck(func_hazen_only_diss, diss=TRUE)[1]
+# bestk_fun2 <- hopach(data=func_hazen_only_matrix, dmat=func_hazen_only_diss, d= "euclid", clusters= "greedy")
+# part_fun <- pam(func_hazen_only_diss, k=bestk_fun, pamonce = 2)
+# part_fun
+# 
+# sil_fun_hazen_only <- data.frame(summary(part_fun)$silinfo$widths)
+# sil_fun_hazen_only$sample <- rownames(sil_fun_hazen_only)
+# sil_fun_hazen_only$sample <- factor(sil_fun_hazen_only$sample, levels=sil_fun_hazen_only$sample)
+# sil_fun_hazen_only_avg <- ddply(sil_fun_hazen_only,~cluster,summarise,avg=paste0("avg. width = ", round(mean(sil_width), 2)))
+# sil_fun_hazen_only_avg <- merge(sil_fun_hazen_only_avg, ddply(sil_fun_hazen_only,~cluster,summarise,n=length(cluster)), by = "cluster")
+# 
+# image <- ggplot(data = sil_fun_hazen_only, aes(x = sample, y = sil_width)) + geom_bar(stat = "identity") + facet_grid(cluster~., scales = "free_y") + coord_flip() + 
+#   geom_text(data = sil_fun_hazen_only_avg, aes(x = n, y = 0.59, label = avg), colour = "black", size = 3) + ylab("Silhouette width") + 
+#   theme(axis.text.y = element_text(size=12)) 
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_silhouettes.svg"), plot=image,
+#        units="mm", width=300, height=300)
+# 
+# pca_func_hazen_only <- prcomp(func_hazen_only_diss)
+# image <- autoplot(pca_func_hazen_only, var.axes = F, alpha = 0, groups = factor(part_fun$clustering)) +
+#   stat_ellipse(level = 0.68, aes(color = factor(part_fun$clustering)), linetype = 2, size = 1.5) +
+#   geom_point(aes(color = factor(part_fun$clustering), fill = sample_data(func_hazen_only)$Site, size = sample_data(func_hazen_only)$Depth.cm), shape = 21, stroke = 2) +
+#   geom_point(aes(alpha = as.character(sample_data(func_hazen_only)$Year)), shape = 3, size=4) +
+#   scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = cluster_palette) +
+#   scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+#                                                                                                       "#5199ff", #john's island
+#                                                                                                       "#a67e48" #snowgoose bay
+#   ), name = "Site") +
+#   guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) +
+#   xlab(paste0("PC1 (", round(100*summary(pca_func_hazen_only)$importance[2],1), "% explained var.)")) + ylab(paste0("PC2 (", round(100*summary(pca_func_hazen_only)$importance[5],1), "% explained var.)"))
+# 
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_cluster_pca.svg"), plot=image,
+#        units="mm", width=300, height=300)
+# 
+# set.seed(42)
+# rtsne_func_hazen_only <- data.frame(Rtsne(func_hazen_only_diss, is_distance = T, perplexity = 5)$Y)
+# rtsne_func_hazen_only_clusters <- hdbscan(rtsne_func_hazen_only, xdist = vegdist(rtsne_func_hazen_only, "euclidean"), minPts = 3)
+# rtsne_func_hazen_only <- cbind(rtsne_func_hazen_only, cluster = rtsne_func_hazen_only_clusters$cluster, site = sample_data(func_hazen_only)$Site, year = sample_data(func_hazen_only)$Year, depth = sample_data(func_hazen_only)$Depth.cm)
+# image <- ggplot(data = rtsne_func_hazen_only, aes(x = X1, y = X2)) + stat_ellipse(level = 0.68, aes(color = factor(cluster)), linetype = 2, size = 1.5) + 
+#   geom_point(aes(color = factor(cluster), fill = site, size = depth), shape = 21, stroke = 2) +
+#   geom_point(aes(alpha = as.character(year)), shape = 3, size=5) +
+#   scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = c("black", cluster_palette)) +
+#   scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+#                                                                                                       "#5199ff", #john's island
+#                                                                                                       "#a67e48" #snowgoose bay
+#   ), name = "Site") +
+#   guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) + theme(axis.title = element_blank())
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_cluster_rtsne.svg"), plot=image,
+#        units="mm", width=300, height=300)
+# 
+# 
+# #all OTUs included in the functional mapping, DPCoA distance
+# func_otus <- read.table("D:/VirtualBox/VirtualBox Share/16S/Hazen16S/hazen_func_table_groups.txt", header = T, row.names = 1)
+# func_otu_names <- rowSums(func_otus)
+# func_otu_names <- names(which(func_otu_names > 0))
+# func_otu_only <- subset_taxa(phyloseqs[[i]], taxa_names(phyloseqs[[i]]) %in% func_otu_names)
+# func_otu_only <- subset_samples(func_otu_only, Lake %in% "Lake Hazen")
+# 
+# func_otu_only <- prune_taxa(taxa_sums(func_otu_only) > 0, func_otu_only)
+# #midpoint root the tree before running DPCoA
+# phy_tree(func_otu_only) = midpoint(phy_tree(func_otu_only))
+# func_otu_only_diss <- DPCoA(func_otu_only)
+# func_otu_only_matrix <- wisconsin(sqrt(veganifyOTU(func_otu_only)))
+# bestk_func_otu <- silcheck(func_otu_only_diss$RaoDis, diss=TRUE)[1]
+# bestk2_func_otu <- hopach(data=func_otu_only_matrix, dmat=func_otu_only_diss$RaoDis, d= "euclid", clusters= "greedy")
+# part_func_otu <- pam(func_otu_only_diss$RaoDis, k=bestk_func_otu, pamonce = 2)
+# part_func_otu
+# 
+# sil_func_otu_only <- data.frame(summary(part_func_otu)$silinfo$widths)
+# sil_func_otu_only$sample <- rownames(sil_func_otu_only)
+# sil_func_otu_only$sample <- factor(sil_func_otu_only$sample, levels=sil_func_otu_only$sample)
+# sil_func_otu_only_avg <- ddply(sil_func_otu_only,~cluster,summarise,avg=paste0("avg. width = ", round(mean(sil_width), 2)))
+# sil_func_otu_only_avg <- merge(sil_func_otu_only_avg, ddply(sil_func_otu_only,~cluster,summarise,n=length(cluster)), by = "cluster")
+# 
+# image <- ggplot(data = sil_func_otu_only, aes(x = sample, y = sil_width)) + geom_bar(stat = "identity") + facet_grid(cluster~., scales = "free_y") + coord_flip() + 
+#   geom_text(data = sil_func_otu_only_avg, aes(x = n, y = 0.6, label = avg), colour = "black", size = 3) + ylab("Silhouette width") + 
+#   theme(axis.text.y = element_text(size=12))
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_func_otu_silhouettes.svg"), plot=image,
+#        units="mm", width=300, height=300)
+# 
+# pca_func_otu_only <- prcomp(func_otu_only_diss$RaoDis)
+# image <- autoplot(pca_func_otu_only, var.axes = F, alpha = 0, groups = factor(part_func_otu$clustering)) +
+#   stat_ellipse(level = 0.68, aes(color = factor(part$clustering)), linetype = 2, size = 1.5) +
+#   geom_point(aes(color = factor(part$clustering), fill = sample_data(func_otu_only)$Site, size = sample_data(func_otu_only)$Depth.cm), shape = 21, stroke = 2) +
+#   geom_point(aes(alpha = as.character(sample_data(func_otu_only)$Year)), shape = 3, size=4) +
+#   scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = cluster_palette) +
+#   scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+#                                                                                                       "#5199ff", #john's island
+#                                                                                                       "#a67e48" #snowgoose bay
+#   ), name = "Site") +
+#   guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) +
+#   xlab(paste0("PC1 (", round(100*summary(pca_common_hazen_only)$importance[2],1), "% explained var.)")) + ylab(paste0("PC2 (", round(100*summary(pca_common_hazen_only)$importance[5],1), "% explained var.)"))
+# 
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_func_otu_cluster_pca.svg"), plot=image,
+#        units="mm", width=300, height=300)
+# 
+# set.seed(42)
+# rtsne_func_otu_only <- data.frame(Rtsne(func_otu_only_diss$RaoDis, is_distance = T, perplexity = 5)$Y)
+# rownames(rtsne_func_otu_only) <- sample_names(func_otu_only)
+# rtsne_func_otu_only_clusters <- hdbscan(rtsne_func_otu_only, xdist = vegdist(rtsne_func_otu_only, "euclidean"), minPts = 3)
+# rtsne_func_otu_only <- cbind(rtsne_func_otu_only, cluster = rtsne_func_otu_only_clusters$cluster, site = sample_data(func_otu_only)$Site, year = sample_data(func_otu_only)$Year, depth = sample_data(func_otu_only)$Depth.cm)
+# image <- ggplot(data = rtsne_func_otu_only, aes(x = X1, y = X2)) + stat_ellipse(level = 0.68, aes(color = factor(cluster)), linetype = 2, size = 1.5) + 
+#   geom_point(aes(color = factor(cluster), fill = site, size = depth), shape = 21, stroke = 2) +
+#   geom_point(aes(alpha = as.character(year)), shape = 3, size=5) +
+#   scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Cluster", values = cluster_palette) +
+#   scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
+#                                                                                                       "#5199ff", #john's island
+#                                                                                                       "#a67e48" #snowgoose bay
+#   ), name = "Site") +
+#   guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) + theme(axis.title = element_blank())
+# ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_func_otu_cluster_rtsne.svg"), plot=image,
+#        units="mm", width=300, height=300)
+# 
+# #check functional group differences between groups
+# 
+# #add lists to populate with random forest data
+# models <- list(NULL)
+# models_2 <- list(NULL)
+# pd_data <- list(NULL)
+# pd_data_2 <- list(NULL)
+# plot_pd_data <- list(NULL)
+# plot_pd_data_2 <- list(NULL)
+# tax_level_nums <- NA
+# full_model_errors <- list(NULL)
+# model_errors_2 <- list(NULL)
+# all_full_model_errors <- list(NULL)
+# all_model_errors_2 <- list(NULL)
+# 
+# #what are differences (both functional and taxonomic) between the functionally clustered groups
+# for (l in 1:2) {
+#   if (l == 1){predictors <- t(otu_table(func_hazen_only))} else {predictors <- t(otu_table(func_otu_only))}
+#   
+#   response <- factor(rtsne_func_hazen_only$cluster)
+#   
+#   rf_data <- data.frame(response, predictors)
+#   
+#   #run random forest model 
+#   set.seed(42)
+#   classify <- ranger(response ~ ., data = rf_data, num.trees=5000, importance="impurity")
+#   
+#   
+#   #calculate model Kappa for the full model (inherently imbalanced data sets so we are using Cohen's Kappa to compare the models)
+#   pred1 <- classify$predictions
+#   kappa1 <- postResample(pred1, rf_data$response)[[2]]
+#   
+#   #sort the data by feature importance
+#   importances <- sort(importance(classify), decreasing = T)
+#   #restrict the number of variables to something reasonable to help with memory management
+#   if (length(importances) >= 250) {importances <- importances[1:250]}
+#   
+#   #add one feature at a time to the model in order of importance and compare kappas
+#   
+#   #reorder the sets
+#   rf_data_2 <- rf_data[c("response", names(importances))]
+#   
+#   comp_classify <- list(NULL)
+#   kappa2 <- NA
+#   for (k in 1:length(importances)) {
+#     #if all the importances are below the mean (all are 0?) break the loop
+#     if (k == 0) {break}
+#     new_data <- data.frame(response=rf_data_2$response, rf_data_2[seq(2,k+1)])
+#     set.seed(42)
+#     comp_classify[[k]] <- ranger(response ~ ., data = new_data, num.trees=5000, importance="impurity")
+#     pred2 <- comp_classify[[k]]$predictions
+#     kappa2[k] <- postResample(pred2, new_data$response)[[2]]
+#     if (kappa2[k] == 1) {
+#       break
+#     }
+#   }
+#   if (length(kappa2) == length(importances)) {
+#     k <- min(which(kappa2 %in% max(kappa2)))
+#   }
+#   #this will store either values of the first "1" or the highest kappa value of all the models run
+#   all_model_errors_2[[j]] <- kappa2[k]
+#   
+#   
+#   #make partial dependence plots of the best model using all of the data
+#   nfeatures <- comp_classify[[k]]$num.independent.variables
+#   rf_data2 <- rf_data_2[1:(nfeatures+1)]
+#   pd <- partial_dependence(comp_classify[[k]], vars=colnames(rf_data2)[-1], data=rf_data2, n=c(25,nrow(rf_data2)))
+#   plot_pd_data <- plot_pd(pd)$data
+#   
+#   
+#   plot_pd_data$variable <- gsub("\\.", " ", plot_pd_data$variable)
+#   if (l == 1){taxonomy_glom <- prune_taxa(levels(plot_pd_data$variable), func_hazen_only)} else {taxonomy_glom <- prune_taxa(levels(plot_pd_data$variable), func_otu_only)}
+#   taxonomy_data.frame <- data.frame(variable=rownames(otu_table(taxonomy_glom)))
+#   taxonomy_merged <- merge(plot_pd_data,taxonomy_data.frame,by="variable")
+#   
+#   pd_ggplot <- ggplot(data = taxonomy_merged, aes(value, prediction*100)) + geom_line(aes(colour=variable), size= 1) +
+#     scale_x_continuous(trans="log2") + labs(x="Normalized abundance", y="Prediction (% chance to be classified)", colour="Function") +
+#     facet_grid(class~variable, scales="free") + theme(legend.position="none")
+#   
+#   if (l == 1) {
+#     ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/func_clustering_pd.svg"), plot=pd_ggplot,
+#            units="mm", width=1200, height=200)
+#   } else  {
+#     ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/tax_clustering_pd.svg"), plot=pd_ggplot,
+#            units="mm", width=1200, height=200)
+#   }
+# }
+# 
+# rm(comp_classify)
+# gc()
+# 
+# #check differences in physicochemistry between groups
+# 
+# #what are differences in physicochemistry of the samples between the clustered groups
+# for (l in 1:3) {
+#   if (l == 1){
+#     response <- factor(rtsne_common_hazen_only$cluster)
+#     cluster_data_name <- "tax"
+#   } else if (l == 2) {
+#     response <- factor(rtsne_func_hazen_only$cluster)
+#     cluster_data_name <- "func"
+#   } else if (l == 3) {
+#     response <- factor(rtsne_func_otu_only$cluster)
+#     cluster_data_name <- "func_otu"
+#   }
+#   
+#   predictors <- data.frame(sample_data(func_hazen_only))[-c(5,6,7)]
+#   predictors$core <- gsub("(.+)\\s[0-9].*","\\1",rownames(predictors))
+#   
+#   rf_data <- data.frame(response, predictors)
+#   
+#   #run random forest model 
+#   set.seed(42)
+#   classify <- ranger(response ~ ., data = rf_data, num.trees=5000, importance="impurity")
+#   
+#   
+#   #calculate model Kappa for the full model (inherently imbalanced data sets so we are using Cohen's Kappa to compare the models)
+#   pred1 <- classify$predictions
+#   kappa1 <- postResample(pred1, rf_data$response)[[2]]
+#   
+#   #sort the data by feature importance
+#   importances <- sort(importance(classify), decreasing = T)
+#   
+#   #add one feature at a time to the model in order of importance and compare kappas
+#   
+#   #reorder the sets
+#   rf_data_2 <- rf_data[c("response", names(importances))]
+#   
+#   comp_classify <- list(NULL)
+#   kappa2 <- NA
+#   for (k in 1:length(importances)) {
+#     #if all the importances are below the mean (all are 0?) break the loop
+#     if (k == 0) {break}
+#     new_data <- data.frame(response=rf_data_2$response, rf_data_2[seq(2,k+1)])
+#     set.seed(42)
+#     comp_classify[[k]] <- ranger(response ~ ., data = new_data, num.trees=5000, importance="impurity")
+#     pred2 <- comp_classify[[k]]$predictions
+#     kappa2[k] <- postResample(pred2, new_data$response)[[2]]
+#     if (kappa2[k] == 1) {
+#       break
+#     }
+#   }
+#   if (length(kappa2) == length(importances)) {
+#     k <- min(which(kappa2 %in% max(kappa2)))
+#   }
+#   #this will store either values of the first "1" or the highest kappa value of all the models run
+#   all_model_errors_2[[j]] <- kappa2[k]
+#   
+#   
+#   #make partial dependence plots of the best model using all of the data
+#   nfeatures <- comp_classify[[k]]$num.independent.variables
+#   rf_data2 <- rf_data_2[1:(nfeatures+1)]
+#   pd <- partial_dependence(comp_classify[[k]], vars=colnames(rf_data2)[-1], data=rf_data2, n=c(25,nrow(rf_data2)))
+#   plot_pd_continuous <- plot_pd(pd)$data
+#   plot_pd_continuous <- na.omit(plot_pd_continuous)
+#   
+#   if (nrow(plot_pd_continuous) > 0) {
+#   plot_pd_continuous$variable <- gsub("\\.", " ", plot_pd_continuous$variable)
+#   pd_continuous_ggplot <- ggplot(data = plot_pd_continuous, aes(value, prediction*100)) + geom_line(aes(colour="black"), size= 1) +
+#     labs(x="value", y="Prediction (% chance to be classified)", colour="Function") +
+#     facet_grid(class~variable, scales="free") + theme(legend.position="none")
+#   }
+#   
+#   #gather, plot and save categorical variable partial dependency plot (if applicable)
+#   if (any(colnames(pd) %in% c("core", "Site"))) {
+#   pd_categorical <- pd[, which(colnames(pd) %in% c("core", "Site", levels(response)))]
+#   pd_categorical <- pd_categorical[!apply(pd_categorical, 1, function (x) sum(is.na(x)) >= 2),]
+#   pd_categorical <- melt(pd_categorical)
+#   pd_categorical$type <- ifelse(is.na(pd_categorical$core),"site", "core")
+#   if (length(levels(factor(pd_categorical$type))) > 1) {
+#     pd_categorical <- as.data.frame(rbindlist(list(pd_categorical[which(is.na(pd_categorical$core)),-1],pd_categorical[which(is.na(pd_categorical$Site)),-2])))
+#   
+#     pd_categorical_ggplot <- ggplot(data = pd_categorical, aes(x = Site, y = value*100)) + geom_bar(stat="identity") +
+#       labs(y="Prediction (% chance to be classified", x="") + facet_grid(variable~type, scales = "free_x") + 
+#       theme(legend.position="none", axis.ticks.x=element_blank(), axis.text.x = element_text(size=14, angle=45, vjust=1, hjust=1), strip.text.x = element_text(size = 16), axis.title.y = element_text(size = 16))
+#   } else {
+#     pd_categorical_ggplot <- ggplot(data = pd_categorical, aes(x = core, y = value*100)) + geom_bar(stat="identity") +
+#       labs(y="Prediction (% chance to be classified", x="") + facet_grid(variable~., scales = "free_x") + 
+#       theme(legend.position="none", axis.ticks.x=element_blank(), axis.text.x = element_text(size=14, angle=45, vjust=1, hjust=1), strip.text.x = element_text(size = 16), axis.title.y = element_text(size = 16))
+#   }
+#   }
+#   
+#   
+#   if (nrow(plot_pd_continuous) > 0) {
+#     ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", cluster_data_name, "_clustering_pd_continuous.svg"), plot=pd_continuous_ggplot,
+#            units="mm", width=300, height=200)
+#   } 
+#   if (any(colnames(pd) %in% c("core", "Site"))) {
+#     ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", cluster_data_name, "_clustering_pd_categorical.svg"), plot=pd_categorical_ggplot,
+#            units="mm", width=300, height=200)
+#   }
+# }
+# 
+# }
 
 #make tables of data available for models
 datasets <- c(rep("common",ncol(sample_data(common))),rep("func_pruned",ncol(sample_data(common))))
@@ -918,17 +1745,8 @@ for (h in 2:4) {
   tax_levels[[h]] <- phyloseq(otu_table(tax_levels[[h]]), sample_data(tax_levels[[h]]), tax_table(tax_levels[[h]]))
   }
 
-models <- list(NULL)
-models_2 <- list(NULL)
-pd_data <- list(NULL)
-pd_data_2 <- list(NULL)
 plot_pd_data <- list(NULL)
-plot_pd_data_2 <- list(NULL)
-tax_level_nums <- NA
-full_model_errors <- list(NULL)
-model_errors_2 <- list(NULL)
-all_full_model_errors <- list(NULL)
-all_model_errors_2 <- list(NULL)
+
 for (j in 1:nrow(modelstorun_frame)) {
   if (modelstorun_frame$set[j] %in% "common"){ #this run for taxonomic data to choose the optimal model among all of the levels
     tax_models <- list(NULL)
@@ -1321,49 +2139,49 @@ if (i == 1) {
   }
 
 
-ordi_common_H2S <- ordisurfs[[1]] #fetch the ordisurf object
+ordi_common_H2S <- ordisurfs[[5]] #fetch the ordisurf object
 ordi_grid_common_H2S <- ordi_common_H2S$grid #extracts the ordisurf object
 ordi_a_common_H2S <- expand.grid(x = ordi_grid_common_H2S$x, y = ordi_grid_common_H2S$y) #get x and ys
 ordi_a_common_H2S$z <- rescale(as.vector(ordi_grid_common_H2S$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_common_H2S <- data.frame(na.omit(ordi_a_common_H2S)) #gets rid of the nas
 ordi_a_na_common_H2S$category <- "H2S"
 
-ordi_common_Sdepth <- ordisurfs[[2]] #fetch the ordisurf object
+ordi_common_Sdepth <- ordisurfs[[6]] #fetch the ordisurf object
 ordi_grid_common_Sdepth <- ordi_common_Sdepth$grid #extracts the ordisurf object
 ordi_a_common_Sdepth <- expand.grid(x = ordi_grid_common_Sdepth$x, y = ordi_grid_common_Sdepth$y) #get x and ys
 ordi_a_common_Sdepth$z <- rescale(as.vector(ordi_grid_common_Sdepth$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_common_Sdepth <- data.frame(na.omit(ordi_a_common_Sdepth)) #gets rid of the nas
 ordi_a_na_common_Sdepth$category <- "Sdepth"
 
-ordi_common_Wdepth <- ordisurfs[[5]] #fetch the ordisurf object
+ordi_common_Wdepth <- ordisurfs[[7]] #fetch the ordisurf object
 ordi_grid_common_Wdepth <- ordi_common_Wdepth$grid #extracts the ordisurf object
 ordi_a_common_Wdepth <- expand.grid(x = ordi_grid_common_Wdepth$x, y = ordi_grid_common_Wdepth$y) #get x and ys
 ordi_a_common_Wdepth$z <- rescale(as.vector(ordi_grid_common_Wdepth$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_common_Wdepth <- data.frame(na.omit(ordi_a_common_Wdepth)) #gets rid of the nas
 ordi_a_na_common_Wdepth$category <- "Wdepth"
 
-ordi_common_pH <- ordisurfs[[6]] #fetch the ordisurf object
+ordi_common_pH <- ordisurfs[[8]] #fetch the ordisurf object
 ordi_grid_common_pH <- ordi_common_pH$grid #extracts the ordisurf object
 ordi_a_common_pH <- expand.grid(x = ordi_grid_common_pH$x, y = ordi_grid_common_pH$y) #get x and ys
 ordi_a_common_pH$z <- rescale(as.vector(ordi_grid_common_pH$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_common_pH <- data.frame(na.omit(ordi_a_common_pH)) #gets rid of the nas
 ordi_a_na_common_pH$category <- "pH"
 
-ordi_common_Redox <- ordisurfs[[7]] #fetch the ordisurf object
+ordi_common_Redox <- ordisurfs[[9]] #fetch the ordisurf object
 ordi_grid_common_Redox <- ordi_common_Redox$grid #extracts the ordisurf object
 ordi_a_common_Redox <- expand.grid(x = ordi_grid_common_Redox$x, y = ordi_grid_common_Redox$y) #get x and ys
 ordi_a_common_Redox$z <- rescale(as.vector(ordi_grid_common_Redox$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_common_Redox <- data.frame(na.omit(ordi_a_common_Redox)) #gets rid of the nas
 ordi_a_na_common_Redox$category <- "Redox"
 
-ordi_common_O2 <- ordisurfs[[8]] #fetch the ordisurf object
+ordi_common_O2 <- ordisurfs[[10]] #fetch the ordisurf object
 ordi_grid_common_O2 <- ordi_common_O2$grid #extracts the ordisurf object
 ordi_a_common_O2 <- expand.grid(x = ordi_grid_common_O2$x, y = ordi_grid_common_O2$y) #get x and ys
 ordi_a_common_O2$z <- rescale(as.vector(ordi_grid_common_O2$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_common_O2 <- data.frame(na.omit(ordi_a_common_O2)) #gets rid of the nas
 ordi_a_na_common_O2$category <- "O2"
 
-ordi_common_Nseq <- ordisurfs[[10]] #fetch the ordisurf object
+ordi_common_Nseq <- ordisurfs[[11]] #fetch the ordisurf object
 ordi_grid_common_Nseq <- ordi_common_Nseq$grid #extracts the ordisurf object
 ordi_a_common_Nseq <- expand.grid(x = ordi_grid_common_Nseq$x, y = ordi_grid_common_Nseq$y) #get x and ys
 ordi_a_common_Nseq$z <- rescale(as.vector(ordi_grid_common_Nseq$z), to=c(0,100)) #unravel the matrix for the z scores
@@ -1481,49 +2299,49 @@ for(g in levels(NMDS_fun_Year$group)){
 }
 
 #ordisurf:
-ordi_fun_H2S <- ordisurfs[[12]] #fetch the ordisurf object
+ordi_fun_H2S <- ordisurfs[[16]] #fetch the ordisurf object
 ordi_grid_fun_H2S <- ordi_fun_H2S$grid #extracts the ordisurf object
 ordi_a_fun_H2S <- expand.grid(x = ordi_grid_fun_H2S$x, y = ordi_grid_fun_H2S$y) #get x and ys
 ordi_a_fun_H2S$z <- rescale(as.vector(ordi_grid_fun_H2S$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_fun_H2S <- data.frame(na.omit(ordi_a_fun_H2S)) #gets rid of the nas
 ordi_a_na_fun_H2S$category <- "H2S"
 
-ordi_fun_Sdepth <- ordisurfs[[13]] #fetch the ordisurf object
+ordi_fun_Sdepth <- ordisurfs[[17]] #fetch the ordisurf object
 ordi_grid_fun_Sdepth <- ordi_fun_Sdepth$grid #extracts the ordisurf object
 ordi_a_fun_Sdepth <- expand.grid(x = ordi_grid_fun_Sdepth$x, y = ordi_grid_fun_Sdepth$y) #get x and ys
 ordi_a_fun_Sdepth$z <- rescale(as.vector(ordi_grid_fun_Sdepth$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_fun_Sdepth <- data.frame(na.omit(ordi_a_fun_Sdepth)) #gets rid of the nas
 ordi_a_na_fun_Sdepth$category <- "Sdepth"
 
-ordi_fun_Wdepth <- ordisurfs[[16]] #fetch the ordisurf object
+ordi_fun_Wdepth <- ordisurfs[[18]] #fetch the ordisurf object
 ordi_grid_fun_Wdepth <- ordi_fun_Wdepth$grid #extracts the ordisurf object
 ordi_a_fun_Wdepth <- expand.grid(x = ordi_grid_fun_Wdepth$x, y = ordi_grid_fun_Wdepth$y) #get x and ys
 ordi_a_fun_Wdepth$z <- rescale(as.vector(ordi_grid_fun_Wdepth$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_fun_Wdepth <- data.frame(na.omit(ordi_a_fun_Wdepth)) #gets rid of the nas
 ordi_a_na_fun_Wdepth$category <- "Wdepth"
 
-ordi_fun_pH <- ordisurfs[[17]] #fetch the ordisurf object
+ordi_fun_pH <- ordisurfs[[19]] #fetch the ordisurf object
 ordi_grid_fun_pH <- ordi_fun_pH$grid #extracts the ordisurf object
 ordi_a_fun_pH <- expand.grid(x = ordi_grid_fun_pH$x, y = ordi_grid_fun_pH$y) #get x and ys
 ordi_a_fun_pH$z <- rescale(as.vector(ordi_grid_fun_pH$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_fun_pH <- data.frame(na.omit(ordi_a_fun_pH)) #gets rid of the nas
 ordi_a_na_fun_pH$category <- "pH"
 
-ordi_fun_Redox <- ordisurfs[[18]] #fetch the ordisurf object
+ordi_fun_Redox <- ordisurfs[[20]] #fetch the ordisurf object
 ordi_grid_fun_Redox <- ordi_fun_Redox$grid #extracts the ordisurf object
 ordi_a_fun_Redox <- expand.grid(x = ordi_grid_fun_Redox$x, y = ordi_grid_fun_Redox$y) #get x and ys
 ordi_a_fun_Redox$z <- rescale(as.vector(ordi_grid_fun_Redox$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_fun_Redox <- data.frame(na.omit(ordi_a_fun_Redox)) #gets rid of the nas
 ordi_a_na_fun_Redox$category <- "Redox"
 
-ordi_fun_O2 <- ordisurfs[[19]] #fetch the ordisurf object
+ordi_fun_O2 <- ordisurfs[[21]] #fetch the ordisurf object
 ordi_grid_fun_O2 <- ordi_fun_O2$grid #extracts the ordisurf object
 ordi_a_fun_O2 <- expand.grid(x = ordi_grid_fun_O2$x, y = ordi_grid_fun_O2$y) #get x and ys
 ordi_a_fun_O2$z <- rescale(as.vector(ordi_grid_fun_O2$z), to=c(0,100)) #unravel the matrix for the z scores
 ordi_a_na_fun_O2 <- data.frame(na.omit(ordi_a_fun_O2)) #gets rid of the nas
 ordi_a_na_fun_O2$category <- "O2"
 
-ordi_fun_Nseq <- ordisurfs[[21]] #fetch the ordisurf object
+ordi_fun_Nseq <- ordisurfs[[22]] #fetch the ordisurf object
 ordi_grid_fun_Nseq <- ordi_fun_Nseq$grid #extracts the ordisurf object
 ordi_a_fun_Nseq <- expand.grid(x = ordi_grid_fun_Nseq$x, y = ordi_grid_fun_Nseq$y) #get x and ys
 ordi_a_fun_Nseq$z <- rescale(as.vector(ordi_grid_fun_Nseq$z), to=c(0,100)) #unravel the matrix for the z scores
@@ -1623,269 +2441,16 @@ image <- ggplot(data = ordisurf_NMDS_data_fun, aes(x=NMDS1, y=NMDS2)) + geom_poi
 ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_ordination_vectors_fun.svg"), plot=image,
        units="mm", width=300, height=300)
 
-#clustering analysis on Lake Hazen samples only
-cluster_palette <- c("#00d092",
-                     "#d660cd",
-                     "#ae9300",
-                     "#0167bc",
-                     "#e65141",
-                     "#6c0034",
-                     "red",
-                     "green",
-                     "blue")
-
-#all common >0.01% OTUs and DPCoA distance
-common_hazen_only <- subset_samples(common, Lake %in% "Lake Hazen")
-common_hazen_only <- prune_taxa(taxa_sums(common_hazen_only) > 0, common_hazen_only)
-#midpoint root the tree before running DPCoA
-phy_tree(common_hazen_only) = midpoint(phy_tree(common_hazen_only))
-common_hazen_only_diss <- DPCoA(common_hazen_only)
-common_hazen_only_matrix <- wisconsin(sqrt(veganifyOTU(common_hazen_only)))
-bestk <- silcheck(common_hazen_only_diss$RaoDis, diss=TRUE)[1]
-bestk2 <- hopach(data=common_hazen_only_matrix, dmat=common_hazen_only_diss$RaoDis, d= "euclid", clusters= "greedy")
-part <- pam(common_hazen_only_diss$RaoDis, k=bestk, pamonce = 2)
-part
-
-sil_common_hazen_only <- data.frame(summary(part)$silinfo$widths)
-sil_common_hazen_only$sample <- rownames(sil_common_hazen_only)
-sil_common_hazen_only$sample <- factor(sil_common_hazen_only$sample, levels=sil_common_hazen_only$sample)
-sil_common_hazen_only_avg <- ddply(sil_common_hazen_only,~cluster,summarise,avg=paste0("avg. width = ", round(mean(sil_width), 2)))
-sil_common_hazen_only_avg <- merge(sil_common_hazen_only_avg, ddply(sil_common_hazen_only,~cluster,summarise,n=length(cluster)), by = "cluster")
-
-image <- ggplot(data = sil_common_hazen_only, aes(x = sample, y = sil_width)) + geom_bar(stat = "identity") + facet_grid(cluster~., scales = "free_y") + coord_flip() + 
-  geom_text(data = sil_common_hazen_only_avg, aes(x = n, y = 0.66, label = avg), colour = "black", size = 3) + ylab("Silhouette width") + 
-  theme(axis.text.y = element_text(size=12))
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_common_silhouettes.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-pca_common_hazen_only <- prcomp(common_hazen_only_diss$RaoDis)
-image <- autoplot(pca_common_hazen_only, var.axes = F, alpha = 0, groups = factor(part$clustering)) + 
-  stat_ellipse(level = 0.68, aes(color = factor(part$clustering)), linetype = 2, size = 1.5) + 
-  geom_point(aes(color = factor(part$clustering), fill = sample_data(common_hazen_only)$Site, size = sample_data(common_hazen_only)$Depth.cm), shape = 21, stroke = 2) +
-  geom_point(aes(alpha = as.character(sample_data(common_hazen_only)$Year)), shape = 3, size=5) +
-  scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Clusters", values = cluster_palette) +
-  scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
-                                                                                                      "#5199ff", #john's island
-                                                                                                      "#a67e48" #snowgoose bay
-  ), name = "Site") +
-  guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) +
-  xlab(paste0("PC1 (", round(100*summary(pca_common_hazen_only)$importance[2],1), "% explained var.)")) + ylab(paste0("PC2 (", round(100*summary(pca_common_hazen_only)$importance[5],1), "% explained var.)"))
-
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_common_cluster_pca.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-#all functional mapping groups, Bray-Curtis dissimilarity
-func_hazen_only <- subset_samples(func_pruned, Lake %in% "Lake Hazen")
-func_hazen_only <- prune_taxa(taxa_sums(func_hazen_only) > 0, func_hazen_only)
-func_hazen_only_matrix <- wisconsin(sqrt(veganifyOTU(func_hazen_only)))
-func_hazen_only_diss <- vegdist(func_hazen_only_matrix, distance = "bray")
-bestk_fun <- silcheck(func_hazen_only_diss, diss=TRUE)[1]
-bestk_fun2 <- hopach(data=func_hazen_only_matrix, dmat=func_hazen_only_diss, d= "euclid", clusters= "greedy")
-part_fun <- pam(func_hazen_only_diss, k=bestk_fun, pamonce = 2)
-part_fun
-
-sil_fun_hazen_only <- data.frame(summary(part_fun)$silinfo$widths)
-sil_fun_hazen_only$sample <- rownames(sil_fun_hazen_only)
-sil_fun_hazen_only$sample <- factor(sil_fun_hazen_only$sample, levels=sil_fun_hazen_only$sample)
-sil_fun_hazen_only_avg <- ddply(sil_fun_hazen_only,~cluster,summarise,avg=paste0("avg. width = ", round(mean(sil_width), 2)))
-sil_fun_hazen_only_avg <- merge(sil_fun_hazen_only_avg, ddply(sil_fun_hazen_only,~cluster,summarise,n=length(cluster)), by = "cluster")
-
-image <- ggplot(data = sil_fun_hazen_only, aes(x = sample, y = sil_width)) + geom_bar(stat = "identity") + facet_grid(cluster~., scales = "free_y") + coord_flip() + 
-  geom_text(data = sil_fun_hazen_only_avg, aes(x = n, y = 0.59, label = avg), colour = "black", size = 3) + ylab("Silhouette width") + 
-  theme(axis.text.y = element_text(size=12)) 
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_silhouettes.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-pca_func_hazen_only <- prcomp(func_hazen_only_diss)
-image <- autoplot(pca_func_hazen_only, var.axes = F, alpha = 0, groups = factor(part_fun$clustering)) + 
-  stat_ellipse(level = 0.68, aes(color = factor(part_fun$clustering)), linetype = 2, size = 1.5) + 
-  geom_point(aes(color = factor(part_fun$clustering), fill = sample_data(func_hazen_only)$Site, size = sample_data(func_hazen_only)$Depth.cm), shape = 21, stroke = 2) +
-  geom_point(aes(alpha = as.character(sample_data(func_hazen_only)$Year)), shape = 3, size=4) +
-  scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Clusters", values = cluster_palette) +
-  scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
-                                                                        "#5199ff", #john's island
-                                                                        "#a67e48" #snowgoose bay
-                                                                        ), name = "Site") +
-  guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) +
-  xlab(paste0("PC1 (", round(100*summary(pca_func_hazen_only)$importance[2],1), "% explained var.)")) + ylab(paste0("PC2 (", round(100*summary(pca_func_hazen_only)$importance[5],1), "% explained var.)"))
-
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_fun_cluster_pca.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-
-#all OTUs included in the functional mapping, DPCoA distance
-func_otus <- read.table("D:/VirtualBox/VirtualBox Share/16S/Hazen16S/hazen_func_table_groups.txt", header = T, row.names = 1)
-func_otu_names <- rowSums(func_otus)
-func_otu_names <- names(which(func_otu_names > 0))
-func_otu_only <- subset_taxa(phyloseqs[[i]], taxa_names(phyloseqs[[i]]) %in% func_otu_names)
-func_otu_only <- subset_samples(func_otu_only, Lake %in% "Lake Hazen")
-
-func_otu_only <- prune_taxa(taxa_sums(func_otu_only) > 0, func_otu_only)
-#midpoint root the tree before running DPCoA
-phy_tree(func_otu_only) = midpoint(phy_tree(func_otu_only))
-func_otu_only_diss <- DPCoA(func_otu_only)
-func_otu_only_matrix <- wisconsin(sqrt(veganifyOTU(func_otu_only)))
-bestk_func_otu <- silcheck(func_otu_only_diss$RaoDis, diss=TRUE)[1]
-bestk2_func_otu <- hopach(data=func_otu_only_matrix, dmat=func_otu_only_diss$RaoDis, d= "euclid", clusters= "greedy")
-part_func_otu <- pam(func_otu_only_diss$RaoDis, k=bestk_func_otu, pamonce = 2)
-part_func_otu
-
-sil_func_otu_only <- data.frame(summary(part_func_otu)$silinfo$widths)
-sil_func_otu_only$sample <- rownames(sil_func_otu_only)
-sil_func_otu_only$sample <- factor(sil_func_otu_only$sample, levels=sil_func_otu_only$sample)
-sil_func_otu_only_avg <- ddply(sil_func_otu_only,~cluster,summarise,avg=paste0("avg. width = ", round(mean(sil_width), 2)))
-sil_func_otu_only_avg <- merge(sil_func_otu_only_avg, ddply(sil_func_otu_only,~cluster,summarise,n=length(cluster)), by = "cluster")
-
-image <- ggplot(data = sil_func_otu_only, aes(x = sample, y = sil_width)) + geom_bar(stat = "identity") + facet_grid(cluster~., scales = "free_y") + coord_flip() + 
-  geom_text(data = sil_func_otu_only_avg, aes(x = n, y = 0.6, label = avg), colour = "black", size = 3) + ylab("Silhouette width") + 
-  theme(axis.text.y = element_text(size=12))
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_func_otu_silhouettes.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-pca_func_otu_only <- prcomp(func_otu_only_diss$RaoDis)
-image <- autoplot(pca_func_otu_only, var.axes = F, alpha = 0, groups = factor(part_func_otu$clustering)) + 
-  stat_ellipse(level = 0.68, aes(color = factor(part$clustering)), linetype = 2, size = 1.5) + 
-  geom_point(aes(color = factor(part$clustering), fill = sample_data(func_otu_only)$Site, size = sample_data(func_otu_only)$Depth.cm), shape = 21, stroke = 2) +
-  geom_point(aes(alpha = as.character(sample_data(func_otu_only)$Year)), shape = 3, size=4) +
-  scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Clusters", values = cluster_palette) +
-  scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
-                                                                                                      "#5199ff", #john's island
-                                                                                                      "#a67e48" #snowgoose bay
-  ), name = "Site") +
-  guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) +
-  xlab(paste0("PC1 (", round(100*summary(pca_common_hazen_only)$importance[2],1), "% explained var.)")) + ylab(paste0("PC2 (", round(100*summary(pca_common_hazen_only)$importance[5],1), "% explained var.)"))
-
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_func_otu_cluster_pca.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-#all OTUs included in the functional mapping, grouped by phylum, Bray-Curtis dissimilarity (not included in the manuscript, but run for good measure)
-func_otu_phylum_only <- tax_glom(func_otu_only, taxrank = "Phylum")
-func_otu_phylum_only_matrix <- wisconsin(sqrt(veganifyOTU(func_otu_phylum_only)))
-func_otu_phylum_only_diss <- vegdist(func_otu_phylum_only_matrix, distance = "bray")
-bestk_func_otu_phylum <- silcheck(func_otu_phylum_only_diss, diss=TRUE)[1]
-bestk2_func_otu_phylum <- hopach(data=func_otu_phylum_only_matrix, dmat=func_otu_phylum_only_diss, d= "euclid", clusters= "greedy")
-part_func_otu_phylum <- pam(func_otu_phylum_only_diss, k=bestk_func_otu_phylum, pamonce = 2)
-part_func_otu_phylum
-
-sil_func_otu_only <- data.frame(summary(part_func_otu)$silinfo$widths)
-sil_func_otu_only$sample <- rownames(sil_func_otu_only)
-sil_func_otu_only$sample <- factor(sil_func_otu_only$sample, levels=sil_func_otu_only$sample)
-sil_func_otu_only_avg <- ddply(sil_func_otu_only,~cluster,summarise,avg=paste0("avg. width = ", round(mean(sil_width), 2)))
-sil_func_otu_only_avg <- merge(sil_func_otu_only_avg, ddply(sil_func_otu_only,~cluster,summarise,n=length(cluster)), by = "cluster")
-
-image <- ggplot(data = sil_func_otu_only, aes(x = sample, y = sil_width)) + geom_bar(stat = "identity") + facet_grid(cluster~., scales = "free_y") + coord_flip() + 
-  geom_text(data = sil_func_otu_only_avg, aes(x = n, y = 0.6, label = avg), colour = "black", size = 3) + ylab("Silhouette width") + 
-  theme(axis.text.y = element_text(size=12))
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_func_otu_silhouettes.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-pca_func_otu_only <- prcomp(func_otu_only_diss$RaoDis)
-image <- autoplot(pca_func_otu_only, var.axes = F, alpha = 0, groups = factor(part_func_otu$clustering)) + 
-  stat_ellipse(level = 0.68, aes(color = factor(part$clustering)), linetype = 2, size = 1.5) + 
-  geom_point(aes(color = factor(part$clustering), fill = sample_data(func_otu_only)$Site, size = sample_data(func_otu_only)$Depth.cm), shape = 21, stroke = 2) +
-  geom_point(aes(alpha = as.character(sample_data(func_otu_only)$Year)), shape = 3, size=4) +
-  scale_alpha_manual(values = c("2014" = 1, "2015" = 0), name = "Year") + scale_colour_manual(name = "Clusters", values = cluster_palette) +
-  scale_size_continuous(range = c(2,6), name = "Sediment depth (cm)") +  scale_fill_manual(values = c("#910a80", #deep hole
-                                                                                                      "#5199ff", #john's island
-                                                                                                      "#a67e48" #snowgoose bay
-  ), name = "Site") +
-  guides(fill = guide_legend(override.aes = list(size = 4), order = 1), alpha = guide_legend(order = 2), color = guide_legend(override.aes = list(shape = 1, size = 4, linetype = "blank"))) +
-  xlab(paste0("PC1 (", round(100*summary(pca_common_hazen_only)$importance[2],1), "% explained var.)")) + ylab(paste0("PC2 (", round(100*summary(pca_common_hazen_only)$importance[5],1), "% explained var.)"))
-
-ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_hazen_all_func_otu_cluster_pca.svg"), plot=image,
-       units="mm", width=300, height=300)
-
-#check functional group differences between groups
-
-#what are differences (both functional and taxonomic) between the functionally clustered groups
-for (l in 1:2) {
-  if (l == 1){predictors <- t(otu_table(func_hazen_only))} else {predictors <- t(otu_table(func_otu_only))}
-  
-  response <- factor(part_fun$clustering)
-  
-  rf_data <- data.frame(response, predictors)
-  
-  #run random forest model 
-  set.seed(42)
-  classify <- ranger(response ~ ., data = rf_data, num.trees=5000, importance="impurity")
-  
-  
-  #calculate model Kappa for the full model (inherently imbalanced data sets so we are using Cohen's Kappa to compare the models)
-  pred1 <- classify$predictions
-  kappa1 <- postResample(pred1, rf_data$response)[[2]]
-  
-  #sort the data by feature importance
-  importances <- sort(importance(classify), decreasing = T)
-  
-  #add one feature at a time to the model in order of importance and compare kappas
-  
-  #reorder the sets
-  rf_data_2 <- rf_data[c("response", names(importances))]
-  
-  comp_classify <- list(NULL)
-  kappa2 <- NA
-  for (k in 1:length(importances)) {
-    #if all the importances are below the mean (all are 0?) break the loop
-    if (k == 0) {break}
-    new_data <- data.frame(response=rf_data_2$response, rf_data_2[seq(2,k+1)])
-    set.seed(42)
-    comp_classify[[k]] <- ranger(response ~ ., data = new_data, num.trees=5000, importance="impurity")
-    pred2 <- comp_classify[[k]]$predictions
-    kappa2[k] <- postResample(pred2, new_data$response)[[2]]
-    if (kappa2[k] == 1) {
-      break
-    }
-  }
-  if (length(kappa2) == length(importances)) {
-    k <- min(which(kappa2 %in% max(kappa2)))
-  }
-  #this will store either values of the first "1" or the highest kappa value of all the models run
-  all_model_errors_2[[j]] <- kappa2[k]
-  
-  
-  #make partial dependence plots of the best model using all of the data
-  nfeatures <- comp_classify[[k]]$num.independent.variables
-  rf_data2 <- rf_data_2[1:(nfeatures+1)]
-  pd <- partial_dependence(comp_classify[[k]], vars=colnames(rf_data2)[-1], data=rf_data2, n=c(25,nrow(rf_data2)))
-  plot_pd_data <- plot_pd(pd)$data
-  
-  
-  plot_pd_data$variable <- gsub("\\.", " ", plot_pd_data$variable)
-  taxonomy_glom <- prune_taxa(levels(plot_pd_data$variable), func_hazen_only)
-  taxonomy_data.frame <- data.frame(variable=rownames(otu_table(taxonomy_glom)))
-  taxonomy_merged <- merge(plot_pd_data,taxonomy_data.frame,by="variable")
-  
-  pd_ggplot <- ggplot(data = taxonomy_merged, aes(value, prediction*100)) + geom_line(aes(colour=variable), size= 1) +
-    scale_x_continuous(trans="log2") + labs(x="Normalized abundance", y="Prediction (% chance to be classified)", colour="Function") +
-    facet_grid(class~variable, scales="free") + theme(legend.position="none")
-  
-  if (l == 1) {
-    ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/func_clustering2_pd.svg"), plot=pd_ggplot,
-           units="mm", width=1200, height=200)
-  } else  {
-    ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/tax_clustering_pd.svg"), plot=pd_ggplot,
-           units="mm", width=600, height=200)
-  }
-}
-
-
 
 #and run the Summer 2015 data sets
 
 } else {
-  ordi_common_Sdepth <- ordisurfs[[2]] #fetch the ordisurf object
+  ordi_common_Sdepth <- ordisurfs[[3]] #fetch the ordisurf object
   ordi_grid_common_Sdepth <- ordi_common_Sdepth$grid #extracts the ordisurf object
   ordi_a_common_Sdepth <- expand.grid(x = ordi_grid_common_Sdepth$x, y = ordi_grid_common_Sdepth$y) #get x and ys
   ordi_a_common_Sdepth$z <- rescale(as.vector(ordi_grid_common_Sdepth$z), to=c(0,100)) #unravel the matrix for the z scores
   ordi_a_na_common_Sdepth <- data.frame(na.omit(ordi_a_common_Sdepth)) #gets rid of the nas
   ordi_a_na_common_Sdepth$category <- "Sdepth"
-  
-  ordi_common_O2 <- ordisurfs[[3]] #fetch the ordisurf object
-  ordi_grid_common_O2 <- ordi_common_O2$grid #extracts the ordisurf object
-  ordi_a_common_O2 <- expand.grid(x = ordi_grid_common_O2$x, y = ordi_grid_common_O2$y) #get x and ys
-  ordi_a_common_O2$z <- rescale(as.vector(ordi_grid_common_O2$z), to=c(0,100)) #unravel the matrix for the z scores
-  ordi_a_na_common_O2 <- data.frame(na.omit(ordi_a_common_O2)) #gets rid of the nas
-  ordi_a_na_common_O2$category <- "O2"
   
   ordi_common_pH <- ordisurfs[[4]] #fetch the ordisurf object
   ordi_grid_common_pH <- ordi_common_pH$grid #extracts the ordisurf object
@@ -1894,21 +2459,28 @@ for (l in 1:2) {
   ordi_a_na_common_pH <- data.frame(na.omit(ordi_a_common_pH)) #gets rid of the nas
   ordi_a_na_common_pH$category <- "pH"
   
-  ordi_common_NO3 <- ordisurfs[[5]] #fetch the ordisurf object
+  ordi_common_O2 <- ordisurfs[[5]] #fetch the ordisurf object
+  ordi_grid_common_O2 <- ordi_common_O2$grid #extracts the ordisurf object
+  ordi_a_common_O2 <- expand.grid(x = ordi_grid_common_O2$x, y = ordi_grid_common_O2$y) #get x and ys
+  ordi_a_common_O2$z <- rescale(as.vector(ordi_grid_common_O2$z), to=c(0,100)) #unravel the matrix for the z scores
+  ordi_a_na_common_O2 <- data.frame(na.omit(ordi_a_common_O2)) #gets rid of the nas
+  ordi_a_na_common_O2$category <- "O2"
+  
+  ordi_common_NO3 <- ordisurfs[[6]] #fetch the ordisurf object
   ordi_grid_common_NO3 <- ordi_common_NO3$grid #extracts the ordisurf object
   ordi_a_common_NO3 <- expand.grid(x = ordi_grid_common_NO3$x, y = ordi_grid_common_NO3$y) #get x and ys
   ordi_a_common_NO3$z <- rescale(as.vector(ordi_grid_common_NO3$z), to=c(0,100)) #unravel the matrix for the z scores
   ordi_a_na_common_NO3 <- data.frame(na.omit(ordi_a_common_NO3)) #gets rid of the nas
   ordi_a_na_common_NO3$category <- "NO3"
   
-  ordi_common_Cl <- ordisurfs[[6]] #fetch the ordisurf object
+  ordi_common_Cl <- ordisurfs[[7]] #fetch the ordisurf object
   ordi_grid_common_Cl <- ordi_common_Cl$grid #extracts the ordisurf object
   ordi_a_common_Cl <- expand.grid(x = ordi_grid_common_Cl$x, y = ordi_grid_common_Cl$y) #get x and ys
   ordi_a_common_Cl$z <- rescale(as.vector(ordi_grid_common_Cl$z), to=c(0,100)) #unravel the matrix for the z scores
   ordi_a_na_common_Cl <- data.frame(na.omit(ordi_a_common_Cl)) #gets rid of the nas
   ordi_a_na_common_Cl$category <- "Chloride"
   
-  ordi_common_SO42 <- ordisurfs[[7]] #fetch the ordisurf object
+  ordi_common_SO42 <- ordisurfs[[8]] #fetch the ordisurf object
   ordi_grid_common_SO42 <- ordi_common_SO42$grid #extracts the ordisurf object
   ordi_a_common_SO42 <- expand.grid(x = ordi_grid_common_SO42$x, y = ordi_grid_common_SO42$y) #get x and ys
   ordi_a_common_SO42$z <- rescale(as.vector(ordi_grid_common_SO42$z), to=c(0,100)) #unravel the matrix for the z scores
@@ -1973,19 +2545,12 @@ for (l in 1:2) {
   
   #functionally mapped data here
   
-  ordi_fun_Sdepth <- ordisurfs[[11]] #fetch the ordisurf object
+  ordi_fun_Sdepth <- ordisurfs[[12]] #fetch the ordisurf object
   ordi_grid_fun_Sdepth <- ordi_fun_Sdepth$grid #extracts the ordisurf object
   ordi_a_fun_Sdepth <- expand.grid(x = ordi_grid_fun_Sdepth$x, y = ordi_grid_fun_Sdepth$y) #get x and ys
   ordi_a_fun_Sdepth$z <- rescale(as.vector(ordi_grid_fun_Sdepth$z), to=c(0,100)) #unravel the matrix for the z scores
   ordi_a_na_fun_Sdepth <- data.frame(na.omit(ordi_a_fun_Sdepth)) #gets rid of the nas
   ordi_a_na_fun_Sdepth$category <- "Sdepth"
-  
-  ordi_fun_O2 <- ordisurfs[[12]] #fetch the ordisurf object
-  ordi_grid_fun_O2 <- ordi_fun_O2$grid #extracts the ordisurf object
-  ordi_a_fun_O2 <- expand.grid(x = ordi_grid_fun_O2$x, y = ordi_grid_fun_O2$y) #get x and ys
-  ordi_a_fun_O2$z <- rescale(as.vector(ordi_grid_fun_O2$z), to=c(0,100)) #unravel the matrix for the z scores
-  ordi_a_na_fun_O2 <- data.frame(na.omit(ordi_a_fun_O2)) #gets rid of the nas
-  ordi_a_na_fun_O2$category <- "O2"
   
   ordi_fun_pH <- ordisurfs[[13]] #fetch the ordisurf object
   ordi_grid_fun_pH <- ordi_fun_pH$grid #extracts the ordisurf object
@@ -1994,21 +2559,28 @@ for (l in 1:2) {
   ordi_a_na_fun_pH <- data.frame(na.omit(ordi_a_fun_pH)) #gets rid of the nas
   ordi_a_na_fun_pH$category <- "pH"
   
-  ordi_fun_NO3 <- ordisurfs[[14]] #fetch the ordisurf object
+  ordi_fun_O2 <- ordisurfs[[14]] #fetch the ordisurf object
+  ordi_grid_fun_O2 <- ordi_fun_O2$grid #extracts the ordisurf object
+  ordi_a_fun_O2 <- expand.grid(x = ordi_grid_fun_O2$x, y = ordi_grid_fun_O2$y) #get x and ys
+  ordi_a_fun_O2$z <- rescale(as.vector(ordi_grid_fun_O2$z), to=c(0,100)) #unravel the matrix for the z scores
+  ordi_a_na_fun_O2 <- data.frame(na.omit(ordi_a_fun_O2)) #gets rid of the nas
+  ordi_a_na_fun_O2$category <- "O2"
+  
+  ordi_fun_NO3 <- ordisurfs[[15]] #fetch the ordisurf object
   ordi_grid_fun_NO3 <- ordi_fun_NO3$grid #extracts the ordisurf object
   ordi_a_fun_NO3 <- expand.grid(x = ordi_grid_fun_NO3$x, y = ordi_grid_fun_NO3$y) #get x and ys
   ordi_a_fun_NO3$z <- rescale(as.vector(ordi_grid_fun_NO3$z), to=c(0,100)) #unravel the matrix for the z scores
   ordi_a_na_fun_NO3 <- data.frame(na.omit(ordi_a_fun_NO3)) #gets rid of the nas
   ordi_a_na_fun_NO3$category <- "NO3"
   
-  ordi_fun_Cl <- ordisurfs[[15]] #fetch the ordisurf object
+  ordi_fun_Cl <- ordisurfs[[16]] #fetch the ordisurf object
   ordi_grid_fun_Cl <- ordi_fun_Cl$grid #extracts the ordisurf object
   ordi_a_fun_Cl <- expand.grid(x = ordi_grid_fun_Cl$x, y = ordi_grid_fun_Cl$y) #get x and ys
   ordi_a_fun_Cl$z <- rescale(as.vector(ordi_grid_fun_Cl$z), to=c(0,100)) #unravel the matrix for the z scores
   ordi_a_na_fun_Cl <- data.frame(na.omit(ordi_a_fun_Cl)) #gets rid of the nas
   ordi_a_na_fun_Cl$category <- "Chloride"
   
-  ordi_fun_SO42 <- ordisurfs[[16]] #fetch the ordisurf object
+  ordi_fun_SO42 <- ordisurfs[[17]] #fetch the ordisurf object
   ordi_grid_fun_SO42 <- ordi_fun_SO42$grid #extracts the ordisurf object
   ordi_a_fun_SO42 <- expand.grid(x = ordi_grid_fun_SO42$x, y = ordi_grid_fun_SO42$y) #get x and ys
   ordi_a_fun_SO42$z <- rescale(as.vector(ordi_grid_fun_SO42$z), to=c(0,100)) #unravel the matrix for the z scores
@@ -2108,8 +2680,11 @@ for (l in 1:2) {
     scale_color_manual(values=contours[[1]], name = "Group") + theme(legend.position = "none")
   ggsave(file = paste0("D:/VirtualBox/VirtualBox Share/16S/Plots/", dataset_names[i], "_ordination_vectors_fun.svg"), plot=image,
          units="mm", width=250, height=200)
+ 
 }
-
+#garbage collection to free up RAM
+rm(comp_classify)
+gc()
 }
 
 #write out the richness and diversity model data, and mantel test summaries
@@ -2194,3 +2769,60 @@ sulf <- sulf[which(rowSums(sulf[2]) > 0),]
 sulf_respirers <- subset_taxa(phyloseqs[[1]], taxa_names(phyloseqs[[1]]) %in% sulf$record)
 plot_bar(sulf_respirers, fill = "Family")
 plot_bar(sulf_respirers, fill = "Genus")
+
+#which taxa were assigned to the functional group of mercury_methylation?
+
+assoc2 <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazensummer_a_OTU_func_association.csv", sep = "\t")
+merc <- assoc2[c(1,which(colnames(assoc2) %in% "mercury_methylation"))]
+merc <- merc[which(rowSums(merc[2]) > 0),]
+merc_methylators <- subset_taxa(phyloseqs[[2]], taxa_names(phyloseqs[[2]]) %in% merc$record)
+plot_bar(merc_methylators, fill = "Species")
+
+# #garbage collection
+# save.image("C:/Users/Matti/Documents/Hazen.RData")
+# rm()
+# gc()
+# load("C:/Users/Matti/Documents/Hazen.RData")
+
+#post hoc, check how analyzing pond1 and skeleton samples separately affects mantel tests
+posthoc_mantels <- list(NULL)
+for (i in 2:3) {
+if (i==2){index <- c(1:4)} else {index <- c(5:8)}
+common_skel_only <- subset_samples(phyloseqs[[i]], Site %in% "Skeleton Lake")
+common_skel_only <- prune_taxa(taxa_sums(common_skel_only) > 0, common_skel_only)
+common_skel_distance <- DPCoA(common_skel_only)
+common_skel_sample_data <- data.frame(sample_data(common_skel_only)[,which(colnames(sample_data(common_skel_only)) %in% continuous_variables)])
+common_skel_env_distance <- vegdist(common_skel_sample_data, method="euclidean")
+common_skel_mantel <- mantel(common_skel_distance$RaoDis, common_skel_env_distance, method="pearson", permutations = 10000)
+posthoc_mantels[[index[1]]] <- common_skel_mantel
+
+fun_skel_only <- subset_samples(func_data[[i]], Site %in% "Skeleton Lake")
+fun_skel_only <- prune_taxa(taxa_sums(fun_skel_only) > 0, fun_skel_only)
+fun_skel_only_matrix <- wisconsin(sqrt(veganifyOTU(fun_skel_only)))
+fun_skel_distance <- vegdist(fun_skel_only_matrix, distance = "bray")
+fun_skel_sample_data <- data.frame(sample_data(fun_skel_only)[,which(colnames(sample_data(fun_skel_only)) %in% continuous_variables)])
+fun_skel_env_distance <- vegdist(fun_skel_sample_data, method="euclidean")
+fun_skel_mantel <- mantel(fun_skel_distance, fun_skel_env_distance, method="pearson", permutations = 10000)
+posthoc_mantels[[index[2]]] <- fun_skel_mantel
+
+common_pond1_only <- subset_samples(phyloseqs[[i]], Site %in% "Pond1")
+common_pond1_only <- prune_taxa(taxa_sums(common_pond1_only) > 0, common_pond1_only)
+common_pond1_distance <- DPCoA(common_pond1_only)
+common_pond1_sample_data <- data.frame(sample_data(common_pond1_only)[,which(colnames(sample_data(common_pond1_only)) %in% continuous_variables)])
+common_pond1_env_distance <- vegdist(common_pond1_sample_data, method="euclidean")
+common_pond1_mantel <- mantel(common_pond1_distance$RaoDis, common_pond1_env_distance, method="pearson", permutations = 10000)
+posthoc_mantels[[index[3]]] <- common_pond1_mantel
+
+fun_pond1_only <- subset_samples(func_data[[i]], Site %in% "Pond1")
+fun_pond1_only <- prune_taxa(taxa_sums(fun_pond1_only) > 0, fun_pond1_only)
+fun_pond1_only_matrix <- wisconsin(sqrt(veganifyOTU(fun_pond1_only)))
+fun_pond1_distance <- vegdist(fun_pond1_only_matrix, distance = "bray")
+fun_pond1_sample_data <- data.frame(sample_data(fun_pond1_only)[,which(colnames(sample_data(fun_pond1_only)) %in% continuous_variables)])
+fun_pond1_env_distance <- vegdist(fun_pond1_sample_data, method="euclidean")
+fun_pond1_mantel <- mantel(fun_pond1_distance, fun_pond1_env_distance, method="pearson", permutations = 10000)
+posthoc_mantels[[index[4]]] <- fun_pond1_mantel
+}
+posthoc_data <- data.frame(Lake = c(rep(c(rep("Skeleton Lake", 2), rep("Pond1", 2)),2)),
+                           Set = c(rep(c("common", "fun", "common", "fun"), 2)),
+                           R2 = sapply(posthoc_mantels, "[[", 3),
+                           bonf.pvalues = p.adjust(c(sapply(posthoc_mantels, "[[", 4)), method = "bonferroni"))
