@@ -985,6 +985,15 @@ common_mantel <- mantel(common_distance$RaoDis, common_env_distance, method="pea
 ef_common <- envfit(ordu_common,sample_data(common),permu=10000)
 sample_data(common) <- sample_data(phyloseqs[[i]])
 
+# #sanity check with removing skeleton lake samples
+# common_hazen_only <- subset_samples(common, Lake %in% "Lake Hazen")
+# common_hazen_only <- prune_taxa(taxa_sums(common_hazen_only) > 0, common_hazen_only)
+# #midpoint root the tree before running DPCoA
+# phy_tree(common_hazen_only) = midpoint(phy_tree(common_hazen_only))
+# common_hazen_only_diss <- DPCoA(common_hazen_only)
+# ordu_common_hazen_only <- ordinate(common_hazen_only, "NMDS", distance = common_hazen_only_diss$RaoDis)
+# ef_common_hazen_only <- envfit(ordu_common_hazen_only,sample_data(common_hazen_only),permu=10000)
+
 # #display a dendrogram of the samples based on DPCoA
 # common_hclust <- hclust(common_distance$RaoDis, method="average")
 # common_tip_labels <- as(get_variable(common, "Site"), "character")
