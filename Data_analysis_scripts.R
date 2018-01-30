@@ -21,6 +21,8 @@ ipak <- function(pkg) {
 
 ipak(packages)
 
+
+#read in functions from miseq (https://github.com/michberr/MicrobeMiseq/blob/master/R/miseqR.R)
 source("C:/Users/Matti/Dropbox/Matti-Alex/R/miseqR.R")
 
 
