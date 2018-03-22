@@ -509,12 +509,12 @@ func_relative_abundances[[i]] <- bars_func
 if (i == 1) {
   bars_func <- rbind(bars_func, data.frame(Sample = empty_levels, Function = levels(bars_func$Function)[1], Abundance = 0))
   p2 <- ggplot(bars_func, aes(x=factor(Sample), y=Abundance, fill=factor(Function))) + scale_x_discrete(limits=rev(sample_levels), breaks=bars$Sample[nchar(as.character(bars$Sample))!=1]) + geom_bar(stat="identity") + 
-    scale_fill_manual(values=rev(funcolors), name = "Function", guide=guide_legend(reverse=T)) + theme(axis.text.y = element_blank(), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5)) +
+    scale_fill_manual(values=rev(funcolors), name = "Group", guide=guide_legend(reverse=T)) + theme(axis.text.y = element_blank(), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5)) +
     ylab("Abundance (%)") + coord_flip() + ggtitle("Functional mapping")
 } else {
   bars_func <- rbind(bars_func, data.frame(Sample = "a", Function = levels(bars_func$Function)[1], Abundance = 0))
   p2 <- ggplot(bars_func, aes(x=factor(Sample), y=Abundance, fill=factor(Function))) + scale_x_discrete(limits=rev(sample_levels_summer), breaks=bars$Sample[nchar(as.character(bars$Sample))!=1]) + geom_bar(stat="identity") + 
-    scale_fill_manual(values=rev(funcolors), name = "Function", guide=guide_legend(reverse=T)) + theme(axis.text.y = element_blank(), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5)) +
+    scale_fill_manual(values=rev(funcolors), name = "Group", guide=guide_legend(reverse=T)) + theme(axis.text.y = element_blank(), panel.border = element_blank(), axis.ticks.y = element_blank(), axis.title.y = element_blank(), legend.position="bottom", plot.title = element_text(size=28, hjust = 0.5)) +
     ylab("Abundance (%)") + coord_flip() + ggtitle("Functional mapping")
   }
 
@@ -2772,22 +2772,6 @@ write.csv(result_frame_prot, paste0("D:/VirtualBox/VirtualBox Share/16S/", datas
 write.csv(sample_data(phyloseqs[[i]]), paste0("D:/VirtualBox/VirtualBox Share/16S/", dataset_names[i],"_metadata.csv"),quote=F)
 }
 
-#which taxa were assigned to the functional group of sulfur_respiration?
-
-assoc <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazen_OTU_func_association.csv", sep = "\t")
-sulf <- assoc[c(1,which(colnames(assoc) %in% "sulfur_respiration"))]
-sulf <- sulf[which(rowSums(sulf[2]) > 0),]
-sulf_respirers <- subset_taxa(phyloseqs[[1]], taxa_names(phyloseqs[[1]]) %in% sulf$record)
-plot_bar(sulf_respirers, fill = "Family")
-plot_bar(sulf_respirers, fill = "Genus")
-
-#which taxa were assigned to the functional group of mercury_methylation?
-
-assoc2 <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazensummer_a_OTU_func_association.csv", sep = "\t")
-merc <- assoc2[c(1,which(colnames(assoc2) %in% "mercury_methylation"))]
-merc <- merc[which(rowSums(merc[2]) > 0),]
-merc_methylators <- subset_taxa(phyloseqs[[2]], taxa_names(phyloseqs[[2]]) %in% merc$record)
-plot_bar(merc_methylators, fill = "Species")
 
 # #garbage collection
 # save.image("C:/Users/Matti/Documents/Hazen.RData")
@@ -2837,3 +2821,58 @@ posthoc_data <- data.frame(Lake = c(rep(c(rep("Skeleton Lake", 2), rep("Pond1", 
                            Set = c(rep(c("common", "fun", "common", "fun"), 2)),
                            R2 = sapply(posthoc_mantels, "[[", 3),
                            bonf.pvalues = p.adjust(c(sapply(posthoc_mantels, "[[", 4)), method = "bonferroni"))
+
+#which taxa were assigned to the functional group of sulfur_respiration in spring 2014/2015?
+
+assoc <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazen_OTU_func_association.csv", sep = "\t")
+sulf <- assoc[c(1,which(colnames(assoc) %in% "sulfur_respiration"))]
+sulf <- sulf[which(rowSums(sulf[2]) > 0),]
+sulf_respirers <- subset_taxa(phyloseqs[[1]], taxa_names(phyloseqs[[1]]) %in% sulf$record)
+plot_bar(sulf_respirers, fill = "Family")
+plot_bar(sulf_respirers, fill = "Genus")
+
+#which taxa were assigned to the functional group of mercury_methylation in summer 2015 archaea?
+
+assoc2 <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazensummer_a_OTU_func_association.csv", sep = "\t")
+merc <- assoc2[c(1,which(colnames(assoc2) %in% "mercury_methylation"))]
+merc <- merc[which(rowSums(merc[2]) > 0),]
+merc_methylators <- subset_taxa(phyloseqs[[2]], taxa_names(phyloseqs[[2]]) %in% merc$record)
+plot_bar(merc_methylators, fill = "Species")
+
+assoc3 <- read.csv("D:/VirtualBox/VirtualBox Share/16S/hazensummer_b_OTU_func_association.csv", sep = "\t")
+
+
+#extra tables for reviews
+if (identical(rownames(data.frame(tax_table(phyloseqs[[1]]))), as.vector(assoc$record))) {
+  assoc <- cbind(data.frame(tax_table(phyloseqs[[1]])), assoc[-1])
+}
+
+arm_hazen <- assoc[,c(1:7,grep("intracellular_parasites", colnames(assoc)))]
+arm_hazen <- arm_hazen[which(arm_hazen[,ncol(arm_hazen)] != 0),]
+
+if (identical(rownames(data.frame(tax_table(phyloseqs[[2]]))), as.vector(assoc2$record))) {
+  assoc2 <- cbind(data.frame(tax_table(phyloseqs[[2]])), assoc2[-1])
+}
+methanogens_hazensummer_a <- assoc2[,c(1:7,grep("methanogenesis", colnames(assoc2)))]
+methanogens_hazensummer_a <- methanogens_hazensummer_a[which(rowSums(methanogens_hazensummer_a[,8:ncol(methanogens_hazensummer_a)]) != 0),]
+
+methanogens_hazensummer_a <- assoc2[,c(1:7,grep("methanogenesis", colnames(assoc2)))]
+methanogens_hazensummer_a <- methanogens_hazensummer_a[which(rowSums(methanogens_hazensummer_a[,8:ncol(methanogens_hazensummer_a)]) != 0),]
+
+if (identical(rownames(data.frame(tax_table(phyloseqs[[3]]))), as.vector(assoc3$record))) {
+  assoc3 <- cbind(data.frame(tax_table(phyloseqs[[3]])), assoc3[-1])
+}
+methanotrophs_hazensummer_b <- assoc3[,c(1:7,grep("methanotrophy", colnames(assoc3)))]
+methanotrophs_hazensummer_b <- methanotrophs_hazensummer_b[which(methanotrophs_hazensummer_b[,ncol(methanotrophs_hazensummer_b)] != 0),]
+
+#save OTU tables with taxonomy
+for (i in 1:3) {
+  if (i > 1) {
+    otu_table <- data.frame(otu_table(phyloseqs[[i]]))
+    colnames(otu_table) <- sample_names(phyloseqs[[i]])
+    setcolorder(otu_table, sample_levels_summer[-9])
+    } else {
+      otu_table <- otu_table(phyloseqs[[i]])
+      }
+  write.csv(cbind(tax_table(phyloseqs[[i]]), otu_table), paste0("D:/VirtualBox/VirtualBox Share/16S/", dataset_names[i],"_otu_tax_table.csv"),quote=F)
+  }
