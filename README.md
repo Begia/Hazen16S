@@ -12,7 +12,7 @@ Vincent L. St.Louis, Stéphane Aris-Brosou, and Alexandre J. Poulain
 	- Format: *Dataset*_Sequence_handling_shell_script.txt
 
 2. Accessory R scripts (used by the sequence handling scripts)
-	- swarm_construc_otu_table.R
+	- swarm_construct_otu_table.R
 		* Constructs an OTU table from output of Swarm 2.0
 	- uc_to_OTU_table.R
 		* Constructs on OTU table from .uc cluster files
