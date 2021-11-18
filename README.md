@@ -1,8 +1,6 @@
 ## Contents
 
-This repository contains supplementary code, databases and scripts from the 
-Lake Hazen 16S study by Matti O. Ruuskanen, Kyra A. St.Pierre, 
-Vincent L. St.Louis, Stéphane Aris-Brosou, and Alexandre J. Poulain
+This repository contains supplementary code, databases and scripts for the study "Physicochemical Drivers of Microbial Community Structure in Sediments of Lake Hazen, Nunavut, Canada" by Matti O. Ruuskanen, Kyra A. St.Pierre, Vincent L. St.Louis, Stéphane Aris-Brosou & Alexandre J. Poulain (https://doi.org/10.3389/fmicb.2018.01138).
 
 ## Included files
 
