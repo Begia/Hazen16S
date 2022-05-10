@@ -23,3 +23,13 @@ This repository contains supplementary code, databases and scripts for the study
 4. Custom FAPROTAX databases
 	- The database that was used to map OTU abundances into functions by taxonomy
 	- All the changes made to the original database can be found as comments at the beginning of the database
+5. Mapping files for demultiplexing
+	- The shell scripts require four mapping files which include information on primers for demultiplexing of the reads.
+	- qhazen_map_meta.txt
+		* 2014 Spring samples from Lake Hazen
+	- rhazen_map_meta.txt
+		* 2015 Spring samples from Lake Hazen and Skeleton Lake
+	- hazensummer_a_map_meta.txt
+		* 2015 Summer samples from Pond1 and Skeleton Lake, archaeal reads
+	- hazensummer_b_map_meta.txt
+		* 2015 Summer samples from Pond1 and Skeleton Lake, bacterial reads
